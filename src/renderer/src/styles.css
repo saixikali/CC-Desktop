@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+/*
+ * CC Desktop 设计 token（视觉语言贴近 DSH Desktop：
+ * 浅色为默认主题，html.dark 切换深色；两套均为中性底 + 克制的强调色）。
+ * 用 @theme inline 让工具类引用原始变量 --c-*，从而支持运行时换肤。
+ */
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-panel: var(--c-panel);
+  --color-hover: var(--c-hover);
+  --color-border: var(--c-border);
+  --color-text: var(--c-text);
+  --color-text-muted: var(--c-text-muted);
+  --color-text-faint: var(--c-text-faint);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-success: var(--c-success);
+  --color-warning: var(--c-warning);
+  --color-danger: var(--c-danger);
+  --color-on-accent: var(--c-on-accent);
+  --color-shadow: var(--c-shadow);
+
+  --font-sans: var(--c-font-sans);
+  --font-mono: var(--c-font-mono);
+}
+
+:root {
+  --c-font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial,
+    sans-serif;
+  --c-font-mono:
+    "SF Mono", "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas,
+    "Liberation Mono", Menlo, Courier, monospace;
+}
+
+/*
+ * 浅色（默认）— 对齐 DSH Desktop 设计系统 light aliases：
+ * 底 #fff、侧栏 neutral-bluish-50、主文字 #0f1115、业务蓝 deepseek-500。
+ */
+:root {
+  --c-bg: #ffffff;
+  --c-surface: #f9fafb;
+  --c-surface-2: #ffffff;
+  --c-surface-3: #f5f6f7;
+  --c-panel: #f9fafb;
+  --c-hover: rgba(38, 49, 72, 0.06);
+  --c-border: rgba(0, 0, 0, 0.1);
+  --c-text: #0f1115;
+  --c-text-muted: #61666b;
+  --c-text-faint: #81858c;
+  --c-accent: #4176e6;
+  --c-accent-soft: #e5f0ff;
+  --c-success: #22c55e;
+  --c-warning: #f59e0b;
+  --c-danger: #ec1313;
+  --c-on-accent: #ffffff;
+  --c-shadow: rgba(15, 17, 21, 0.08);
+}
+
+/* 深色 — 对齐 DSH neutral-bluish 暗色阶（侧栏 900、底 950、面板 875）。 */
+html.dark {
+  --c-bg: #151517;
+  --c-surface: #1b1b1c;
+  --c-surface-2: #232324;
+  --c-surface-3: #2c2c2e;
+  --c-panel: #1b1b1c;
+  --c-hover: rgba(255, 255, 255, 0.06);
+  --c-border: rgba(255, 255, 255, 0.1);
+  --c-text: #f5f6f7;
+  --c-text-muted: #adb2b8;
+  --c-text-faint: #81858c;
+  --c-accent: #5686fe;
+  --c-accent-soft: rgba(86, 134, 254, 0.16);
+  --c-success: #22c55e;
+  --c-warning: #f59e0b;
+  --c-danger: #f25a5a;
+  --c-on-accent: #ffffff;
+  --c-shadow: rgba(0, 0, 0, 0.5);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--c-font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 自定义标题栏：整条可拖拽，按钮不响应拖拽 */
+.titlebar {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.titlebar-actions,
+.titlebar button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* 正文区域允许选择（标题栏/侧栏等容器按需另行关闭） */
+.selectable {
+  user-select: text;
+}
+
+/* Markdown 排版（react-markdown + hljs） */
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+.markdown-body p {
+  margin: 0.55em 0;
+}
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 0.9em 0 0.45em;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.markdown-body h1 { font-size: 17px; }
+.markdown-body h2 { font-size: 15px; }
+.markdown-body h3 { font-size: 14px; }
+.markdown-body ul,
+.markdown-body ol {
+  margin: 0.5em 0;
+  padding-left: 1.4em;
+}
+.markdown-body li {
+  margin: 0.2em 0;
+}
+.markdown-body ul { list-style: disc; }
+.markdown-body ol { list-style: decimal; }
+.markdown-body blockquote {
+  margin: 0.6em 0;
+  border-left: 2px solid var(--c-border);
+  padding-left: 0.9em;
+  color: var(--c-text-muted);
+}
+.markdown-body hr {
+  margin: 1em 0;
+  border: none;
+  border-top: 1px solid var(--c-border);
+}
+.markdown-body code {
+  font-family: var(--c-font-mono);
+}
+
+input,
+textarea {
+  user-select: text;
+}
+
+::selection {
+  background: var(--c-accent-soft);
+  color: var(--c-text);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--c-border);
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-faint);
+  background-clip: content-box;
+}
+
+/* 欢迎页输入卡下方的径向光晕 */
+.welcome-glow {
+  pointer-events: none;
+  background: radial-gradient(
+    620px 260px at 50% 100%,
+    color-mix(in srgb, var(--c-accent) 13%, transparent),
+    transparent 72%
+  );
+}

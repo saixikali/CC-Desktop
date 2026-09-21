@@ -1,0 +1,41 @@
+name: Release
+
+# 打 v* 标签时自动构建 NSIS 安装包并创建 GitHub Release
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 类型检查
+        run: npm run typecheck
+
+      - name: 构建安装包
+        # electron-builder.yml 里的 publish 是 generic 占位地址，
+        # 这里显式 --publish never，改由下一步上传到 GitHub Release。
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: 创建 Release 并上传安装包
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*-setup.exe
+            dist/*-setup.exe.blockmap
+            dist/latest.yml
+          generate_release_notes: true
