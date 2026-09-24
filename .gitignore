@@ -1,0 +1,12 @@
+# asar 二进制与备份一律不入库
+*.asar
+*.asar.unpacked/
+*.bak
+
+# 临时工作区（在安装目录下，不属于 skill）
+_asar_work/
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.log
