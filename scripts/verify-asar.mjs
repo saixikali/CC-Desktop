@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // 校验补丁后的 asar：成员清单一致、除目标外全部逐字节相同、目标与期望文件一致、
 // 且补丁包内每个 packed 成员的 SHA256 integrity 与数据实际哈希吻合。
+// 差异成员数允许 0 或 1：0 = 新内容与原内容相同的幂等重写（合法），1 = 目标被改动；
+// 任何**非目标**成员出现差异一律立即失败。
 // 用法: node verify-asar.mjs <原始 asar> <补丁 asar> <目标成员路径> <期望内容文件>
 import fs from 'node:fs';
 import {
@@ -37,10 +39,14 @@ for (const f of setA) {
     if (f !== entry) throw new Error(`非目标成员出现差异: ${f} (${da.length} vs ${db.length})`);
   }
 }
-if (differ !== 1) throw new Error(`差异成员数=${differ}，预期恰好 1 个（目标成员）`);
+if (differ > 1) throw new Error(`差异成员数=${differ}，预期 0（幂等重写）或 1（目标成员）`);
 const targetData = readPackedData(b, findNode(b.header, entry));
 if (!targetData.equals(expected)) throw new Error('目标成员与期望内容文件不一致');
-console.log('✓ 仅目标成员发生变化，且与期望内容逐字节一致');
+if (differ === 0) {
+  console.log('✓ 全部成员逐字节相同（幂等重写：新内容与原内容一致，包布局无漂移）');
+} else {
+  console.log('✓ 仅目标成员发生变化，且与期望内容逐字节一致');
+}
 
 // 3. 非 packed 条目（unpacked / link）元数据保持不变
 const othersA = [], othersB = [];

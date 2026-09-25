@@ -3,8 +3,12 @@
 // 三件事全部通过才 exit 0：
 //   A. 幂等往返：读出某成员原内容 → 以原内容打补丁 → 产物与原包 sha256 逐字节相同
 //   B. 真实改动：改动 1 字节 → 打补丁 → verify-asar.mjs 四重校验通过
-//   C. 空文件目标必须被拒绝（非 0 退出）
+//   C. 空文件目标必须被 guard 拒绝（退出码 1、stderr 含 guard 文案、且不产出文件）
 // 同时打印基线：packed 成员数 / 空文件数 / integrity 不符数（CC Desktop 当前基线 7897 / 2 / 0）。
+//
+// 注意：本脚本用 spawnSync 起子进程并捕获输出。在禁止 piped stdio 的受限沙箱下子进程会
+// EPERM 启动失败（status 为 null），此时会明确报「子进程可正常启动 ✗」，而不会被
+// 误判成「守卫生效」的假绿。
 //
 // 用法: node test-roundtrip.mjs <app.asar>
 import crypto from 'node:crypto';
@@ -26,6 +30,9 @@ if (!asarPath) {
 
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const run = (script, args) => spawnSync(process.execPath, [path.join(__dirname, script), ...args], { encoding: 'utf8' });
+// 子进程没跑起来时 status 也是 null，绝不能拿 status !== 0 当"守卫生效"的证据（会造成假绿）
+const tail = (r) => (r.stderr || r.stdout || '').trim().split(/\r?\n/).filter(Boolean).slice(-1)[0] ?? '';
+const spawnNote = (r) => (r.error ? `（${r.error.code || r.error.message}）` : '');
 let failures = 0;
 const ok = (cond, msg) => {
   console.log(`${cond ? '✓' : '✗'} ${msg}`);
@@ -80,7 +87,8 @@ try {
   console.log('A. 幂等往返测试');
   const idempotentOut = path.join(tmpDir, 'idempotent.asar');
   const rA = run('patch-asar.mjs', [asarPath, samplePath, originalFile, idempotentOut]);
-  ok(rA.status === 0, 'patch-asar 以原内容重写退出码为 0');
+  ok(!rA.error, `patch-asar 子进程可正常启动${spawnNote(rA)}`);
+  ok(rA.status === 0, `patch-asar 以原内容重写退出码为 0${rA.status === 0 ? '' : `（实际 ${rA.status}；${tail(rA)}）`}`);
   if (rA.status === 0) {
     const same = sha256(fs.readFileSync(idempotentOut)) === sha256(fs.readFileSync(asarPath));
     ok(same, '幂等产物与原包 sha256 完全一致（布局无漂移）');
@@ -93,12 +101,13 @@ try {
   fs.writeFileSync(modifiedFile, modified);
   const changedOut = path.join(tmpDir, 'changed.asar');
   const rB = run('patch-asar.mjs', [asarPath, samplePath, modifiedFile, changedOut]);
-  ok(rB.status === 0, 'patch-asar 以改动内容打补丁退出码为 0');
+  ok(!rB.error, `patch-asar 子进程可正常启动${spawnNote(rB)}`);
+  ok(rB.status === 0, `patch-asar 以改动内容打补丁退出码为 0${rB.status === 0 ? '' : `（实际 ${rB.status}；${tail(rB)}）`}`);
   if (rB.status === 0) {
     const rV = run('verify-asar.mjs', [asarPath, changedOut, samplePath, modifiedFile]);
     process.stdout.write(rV.stdout);
     if (rV.stderr) process.stderr.write(rV.stderr);
-    ok(rV.status === 0, 'verify-asar 四重校验全部通过');
+    ok(rV.status === 0, `verify-asar 四重校验全部通过${rV.status === 0 ? '' : `（实际 ${rV.status}；${tail(rV)}）`}`);
   }
 
   // ---- C. 空文件目标必须被拒绝 ----
@@ -122,7 +131,9 @@ try {
     fs.writeFileSync(nonEmptyPayload, Buffer.from('not empty\n'));
     const badOut = path.join(tmpDir, 'should-not-exist.asar');
     const rC = run('patch-asar.mjs', [asarPath, emptyPath, nonEmptyPayload, badOut]);
-    ok(rC.status !== 0, `空文件成员 ${emptyPath} 被拒绝（退出码 ${rC.status}）`);
+    ok(!rC.error, `patch-asar 子进程可正常启动${spawnNote(rC)}`);
+    ok(rC.status === 1, `空文件成员 ${emptyPath} 被守卫拒绝（退出码须为 1，实际 ${rC.status}${rC.status === null ? '：子进程未正常退出' : ''}）`);
+    ok(/空文件成员不可作为补丁目标/.test(rC.stderr || ''), `拒绝原因确为空文件 guard${rC.stderr ? `（${tail(rC)}）` : '（stderr 为空）'}`);
     ok(!fs.existsSync(badOut), '拒绝时不产出补丁文件');
   }
 } finally {
