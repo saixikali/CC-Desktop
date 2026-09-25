@@ -5,6 +5,16 @@
 
 ## 2026-09-26
 
+### 工作区「+」按钮悬停即时提示
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`ad3370caec440fe5854c9315b371bb15fc9d839ffaa11edf062d70271ef9a6d0`（3063638 B）
+  - 改后 sha256：`5a178da4ebb0d3ea1fdbcc75b1619422828093423b570fa87d8be121ba6a373c`（3064154 B）
+- 摘要：
+  - 「+」按钮去掉原生 title（延迟 1s+ 用户无感），改为 onMouseEnter/Leave 状态驱动的即时气泡「新建会话」（按钮下方，bg-surface/border/圆角/阴影，主题一致）
+  - 定位用内联 style（tailwind 编译后产物无法新增工具类）；创建中转圈时不显示气泡
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新标识 ✓
+- 整包 sha256：`ab84e7d65bbc3f783ba7374fd98056daeff02d3a9d18f50ac1e7866fdc87cce5`
+
 ### 工作区分组头部新增「+」新建会话（对标 Trae）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf`（3062287 B）
