@@ -5,6 +5,29 @@
 
 ## 2026-09-26
 
+### 工作区分组头部新增「+」新建会话（对标 Trae）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf`（3062287 B）
+  - 改后 sha256：`ad3370caec440fe5854c9315b371bb15fc9d839ffaa11edf062d70271ef9a6d0`（3063638 B）
+- 摘要：
+  - GroupHeader 内 project 分组行 hover 显示「+」按钮（位于「...」菜单按钮左侧）
+  - 点击以该工作区 roots[0] 为 cwd 直接 startThread + openThread，不再弹目录选择；带 pending 权限覆盖
+  - 创建中显示 LoaderCircle 转圈；失败走 toastError；仅真实工作区分组显示（临时目录/未分组不出现）
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新标识 ✓
+- 整包 sha256：`14afa4d2330e29e17373bf3a17bc4326999295da2b7c308e9215bd86e2fdeee3`
+
+### 权限菜单恢复紧凑尺寸
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`2521c997731e44cb4f4104ecff5ac7822d0e709389173f8e11cc33e12db5b415`（3062258 B）
+  - 改后 sha256：`bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf`（3062287 B）
+- 摘要：
+  - PopoverShell 弹层 w-72→w-56、rounded-2xl→rounded-xl、p-1.5→p-1
+  - 触发按钮 rounded-xl→rounded-lg、px-3→px-2.5
+  - 选项行 gap-3→gap-2、rounded-xl→rounded-lg、px-3 py-2.5→px-2.5 py-1.5；图标 h-5→h-3.5、标题 text-sm font-semibold→默认 font-medium、副标题 text-xs→text-[10px]
+  - 保留：cc-pop 动画、选中项后自动收菜单、非 default 时按钮常亮蓝、绕过权限 Dialog
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新类名 ✓
+- 整包 sha256：`29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b`
+
 ### 工具链加固（本目录，非 app.asar 成员；线上包哈希未变）
 - **修 `test-roundtrip.mjs` 假绿**：C 用例原用 `status !== 0` 判"空文件目标被守卫拒绝"，但子进程启动失败时 `status` 也是 `null`，会被误判为通过（受限沙箱下实测复现：A/B 报错、C 却打勾）。现在 C 断言**退出码必须为 1**、stderr 必须含 guard 文案，A/B/C 均先断言"子进程可正常启动（无 spawn error）"，失败时附最后一行 stderr。
 - **`verify-asar.mjs` 支持幂等重写**：差异成员数由"恰好 1"放宽为 **0 或 1**（0 = 新内容与原内容相同），消除与 `test-roundtrip.mjs` A 用例（幂等往返）的判定矛盾；非目标成员出现差异仍在循环内立即失败。
@@ -20,18 +43,6 @@
   - 受限沙箱（禁止 piped stdio / 命名管道）下 Electron 启动会以 `mojo platform_channel.cc 拒绝访问 (0x5)` 崩溃、`spawnSync` 会 EPERM —— 这类环境请以脚本报出的「子进程可正常启动 ✗」为准，不是脚本缺陷。
 - 修复过程中发现并修掉 `smoke-test.mjs` 自身的一个坑：Node 的 `spawnSync` 默认对 argv 加引号转义会破坏 `cmd /c` 整条命令串（表现为日志文件根本不生成），已加 `windowsVerbatimArguments: true`，并在日志缺失时打印实际命令与退出码。
 - 整包 sha256 未变：`29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b`（本次无应用补丁，锚点块不更新）
-
-### 权限菜单恢复紧凑尺寸
-- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
-  - 改前 sha256：`2521c997731e44cb4f4104ecff5ac7822d0e709389173f8e11cc33e12db5b415`（3062258 B）
-  - 改后 sha256：`bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf`（3062287 B）
-- 摘要：
-  - PopoverShell 弹层 w-72→w-56、rounded-2xl→rounded-xl、p-1.5→p-1
-  - 触发按钮 rounded-xl→rounded-lg、px-3→px-2.5
-  - 选项行 gap-3→gap-2、rounded-xl→rounded-lg、px-3 py-2.5→px-2.5 py-1.5；图标 h-5→h-3.5、标题 text-sm font-semibold→默认 font-medium、副标题 text-xs→text-[10px]
-  - 保留：cc-pop 动画、选中项后自动收菜单、非 default 时按钮常亮蓝、绕过权限 Dialog
-- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新类名 ✓
-- 整包 sha256：`29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b`
 
 ### 工具卡片样式对标 Trae（思考/命令/MCP 卡 + 徽章 pill 化）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
