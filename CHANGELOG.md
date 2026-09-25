@@ -5,6 +5,22 @@
 
 ## 2026-09-26
 
+### 工具链加固（本目录，非 app.asar 成员；线上包哈希未变）
+- **修 `test-roundtrip.mjs` 假绿**：C 用例原用 `status !== 0` 判"空文件目标被守卫拒绝"，但子进程启动失败时 `status` 也是 `null`，会被误判为通过（受限沙箱下实测复现：A/B 报错、C 却打勾）。现在 C 断言**退出码必须为 1**、stderr 必须含 guard 文案，A/B/C 均先断言"子进程可正常启动（无 spawn error）"，失败时附最后一行 stderr。
+- **`verify-asar.mjs` 支持幂等重写**：差异成员数由"恰好 1"放宽为 **0 或 1**（0 = 新内容与原内容相同），消除与 `test-roundtrip.mjs` A 用例（幂等往返）的判定矛盾；非目标成员出现差异仍在循环内立即失败。
+- **新增 `check-ledger.mjs`**：台账「当前线上包」锚点块的整包 sha256 + 成员 sha256/字节数 vs 磁盘真实 asar 逐项自检，不符即非 0 退出。实现上避开两个坑：正文里提到「当前线上包快照」的叙述句不能当锚点行（必须同时是表格行且含 64 位哈希）；PowerShell 写出的 BOM 要剥掉才能匹配首行。
+- **新增 `smoke-test.mjs`（行为层门禁）**：用应用自带的 `CC_SELFTEST=1` 实跑一次（userData 切到临时目录，**不动真实会话数据，可与正式实例并存**），抓 `CC_SELFTEST_RESULT` 并断言：`window.cc` 桥存在、渲染层 `require`/`process` 不可用、CSP 禁 `eval`、`fs` 路径穿越被拒、畸形 IPC 参数被拒；后端状态/向导联调只告警。支持 `--log` 离线重放判定。
+- **新增 `snapshots/cc-desktop/`**：把当前线上包的 3 个改后成员（`out/main/index.js`、`out/renderer/assets/index-CnGZ3Eox.js`、`index-fIxHbQTX.css`）入库。此前 23 个补丁的成果只存在于安装目录的二进制与不入库的 `_asar_work` 里，**哈希不能还原代码**。
+- **清理 `_asar_work`**：删除 4 个 0 字节占位包（`app.p3~p6.asar`，2026-09-24 计划删除未执行）与 2026-09-21 的整包解包残留 `app/node_modules`（8075 文件 / 282 MB，属 SKILL.md 明令避免的整包 extract，可从 asar 重新抽出）。
+- SKILL.md 增补：标准流程第 6~8 步（行为层冒烟、记账+刷新快照、样式改动先走预览副本）、verify 幂等语义、受限沙箱下的 EPERM 说明、更新会整包覆盖补丁的事实。
+- 验证（普通权限终端实跑，三项全部 exit 0）：
+  - `test-roundtrip` **全绿**：幂等往返产物与原包整包 sha256 逐字节相同；真实改动四重校验通过（7897 packed / 190 unpacked 元数据未变 / integrity 全吻合）；空文件目标以**退出码 1 + guard 文案**被拒且不产出文件。
+  - `check-ledger`：线上包 + 3 个成员哈希与字节数全对齐。
+  - `smoke-test` **实跑通过**：`requireType`/`processType` 均 `undefined`、`evalBlocked=true`、`traversal=FORBIDDEN_PATH`、`malformed=BAD_REQUEST`、`ccPresent=true`（13 个桥接口）、`status=ready`；实测 CSP 比 `index.html` 的 meta 更严（另有 `form-action 'none'`、`frame-ancestors 'none'`）。
+  - 受限沙箱（禁止 piped stdio / 命名管道）下 Electron 启动会以 `mojo platform_channel.cc 拒绝访问 (0x5)` 崩溃、`spawnSync` 会 EPERM —— 这类环境请以脚本报出的「子进程可正常启动 ✗」为准，不是脚本缺陷。
+- 修复过程中发现并修掉 `smoke-test.mjs` 自身的一个坑：Node 的 `spawnSync` 默认对 argv 加引号转义会破坏 `cmd /c` 整条命令串（表现为日志文件根本不生成），已加 `windowsVerbatimArguments: true`，并在日志缺失时打印实际命令与退出码。
+- 整包 sha256 未变：`29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b`（本次无应用补丁，锚点块不更新）
+
 ### 权限菜单恢复紧凑尺寸
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`2521c997731e44cb4f4104ecff5ac7822d0e709389173f8e11cc33e12db5b415`（3062258 B）
@@ -107,12 +123,20 @@
 
 ## 锚点哈希
 
+只放两块：**不可变的里程碑锚点** 与 **当前线上状态**。里程碑块一旦写下不再改动；每打一个补丁只更新「当前线上包」块，块内三行一起换。
+
+**自检**：若「当前线上包」的整包 sha256 与本文件最新一条补丁条目的「整包 sha256」不一致，说明台账漏记或记错 —— 先补台账，别改这张表。
+
 | 对象 | sha256 |
 |---|---|
 | 最初原版备份 `_asar_work/app.asar.orig.bak` | `ede9fb8d7487c0393a7a7ad33cae7cc4c9bd650b26d5c781d036eff268850a79` |
-| 当前线上包（截至 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
+| 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
+| **当前线上包**（截至 2026-09-26「权限菜单恢复紧凑尺寸」） | `29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b` |
+| └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3062287 B） | `bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf` |
+| └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式
 
