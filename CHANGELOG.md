@@ -3,6 +3,19 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-09-26
+
+### 权限模式选择器对标 Trae 样式
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`4c0a8dac3cdb88bf3d35d04d50cc680b9a20b3d19fd42e051a59f7cfa2da43b3`（3059566 B）
+  - 改后 sha256：`d12a96d196feabd5acbe0fcc2b3e58e2eadd1ecdff7d3a0f7da179a14bf6dd8e`（3059672 B）
+- 摘要：
+  - PermissionPill 弹层加宽（w-56→w-72）、rounded-2xl、p-1.5，加 cc-pop 弹出动画；PopoverShell 触发按钮 rounded-xl/px-3
+  - 选项改大卡片行：图标 h-5 w-5、标题 text-sm font-semibold、副标题 text-xs text-text-faint、px-3 py-2.5、gap-3、rounded-xl；选中行蓝紫高亮 + 蓝色图标/对勾
+  - PermissionPill 传 active（非 default 模式时底部按钮常亮蓝）；工作区选择弹层共享同一套容器样式
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897 packed，仅 1 成员差异）；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新类名 ✓
+- 整包 sha256：`45b24fb6c9a3fbb58460bb48b16691f1e9835c8b6f0fdccf5f210c5f77531fc9`
+
 ## 2026-09-25
 
 ### 00:xx — 流式卡顿 + MCP 卡完成后不折叠
