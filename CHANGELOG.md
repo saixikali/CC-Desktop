@@ -5,6 +5,18 @@
 
 ## 2026-09-26
 
+### 权限菜单恢复紧凑尺寸
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`2521c997731e44cb4f4104ecff5ac7822d0e709389173f8e11cc33e12db5b415`（3062258 B）
+  - 改后 sha256：`bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf`（3062287 B）
+- 摘要：
+  - PopoverShell 弹层 w-72→w-56、rounded-2xl→rounded-xl、p-1.5→p-1
+  - 触发按钮 rounded-xl→rounded-lg、px-3→px-2.5
+  - 选项行 gap-3→gap-2、rounded-xl→rounded-lg、px-3 py-2.5→px-2.5 py-1.5；图标 h-5→h-3.5、标题 text-sm font-semibold→默认 font-medium、副标题 text-xs→text-[10px]
+  - 保留：cc-pop 动画、选中项后自动收菜单、非 default 时按钮常亮蓝、绕过权限 Dialog
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新类名 ✓
+- 整包 sha256：`29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b`
+
 ### 工具卡片样式对标 Trae（思考/命令/MCP 卡 + 徽章 pill 化）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`13b60213e8ff1d771d3032231375c099abd14c540efb2a00076a775469929670`（3062178 B）
