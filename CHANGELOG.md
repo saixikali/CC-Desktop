@@ -5,6 +5,14 @@
 
 ## 2026-09-26
 
+### 修复「+」悬停气泡无文字（i18n key 命名空间笔误）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`8534b653ee97beee16b298e46b55310bed738e07b505d0e8d3d1525f42674cd6`（3064385 B）
+  - 改后 sha256：`22ade0e577651606b0e7f3e4ad0e93f0d0ef5383fac480408a2e37d010398cae`（3064384 B）
+- 摘要：tooltip 文案误用 `t.sidebar.newThread`（该命名空间无此 key，渲染为 undefined → 空气泡）；`newThread:"新建会话"` 实际在 `common` 下，改为 `t.common.newThread`
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员 `-SimpleMatch` 确认 ✓
+- 整包 sha256：`ad06162b2f1d8855d6eb3b614421c519784f2dc960ade18e38930f658799c33c`
+
 ### 临时目录分组也有「+」新建会话
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`5a178da4ebb0d3ea1fdbcc75b1619422828093423b570fa87d8be121ba6a373c`（3064154 B）
