@@ -3,6 +3,22 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-09-25
+
+### 00:xx — 流式卡顿 + MCP 卡完成后不折叠
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d`（3058166 B）
+  - 改后 sha256：`4c0a8dac3cdb88bf3d35d04d50cc680b9a20b3d19fd42e051a59f7cfa2da43b3`（3059566 B）
+- 成员：`out/renderer/assets/index-fIxHbQTX.css`
+  - 改后 sha256：`e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6`（64394 B）
+- 摘要：
+  - Markdown 流式期间渲染纯文本（停止更新 240ms 后才渲染富文本），消除每帧 react-markdown 全量重解析（O(n²)）；任务流/对话流均接入
+  - MCP 工具卡在 running→completed 跳变时自动收成一行（用户手动展开不被覆盖）
+  - TurnGroup 列表 key 改用稳定 item.id，避免操作项插入导致消息组件重挂载
+  - CSS 新增 `.cc-caret` 流式光标（含 reduced-motion 降级）
+- 验证：node --check ✓；链式 patch（JS→CSS）每轮 verify 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓
+- 整包 sha256：`2afa12f3846c3cda8ae5ebc1463df5bc3b8243604a7dae3fc44e53aa4e568897`
+
 ## 2026-09-24
 
 ### skill 工程化（本目录，非 app.asar 成员）
