@@ -5,6 +5,18 @@
 
 ## 2026-09-26
 
+### 绕过权限二次风险确认（对标 Trae）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`d12a96d196feabd5acbe0fcc2b3e58e2eadd1ecdff7d3a0f7da179a14bf6dd8e`（3059672 B）
+  - 改后 sha256：`13b60213e8ff1d771d3032231375c099abd14c540efb2a00076a775469929670`（3062178 B）
+- 摘要：
+  - 点「绕过权限」不再直接切换：菜单先收起，弹出 Dialog（warning 图标 + 标题 + 风险说明），「取消」/红色「确认绕过」；Esc/遮罩/X 均可放弃
+  - 已是绕过模式再点该项不重复弹框；其余三种模式点选即生效
+  - PopoverShell children 支持函数形式 `(close) => ...`，选中项后菜单自动收起（WorkspacePill 走旧数组分支，行为不变）
+  - i18n 新增 permBypassWarnTitle/permBypassWarnBody/permBypassWarnConfirm（仅中文语言包）
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897 packed，仅 1 成员差异）；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新标识 ✓
+- 整包 sha256：`39b874a4a20d7dcb664ee16fb7f3ee1eb7d0a16ea745e8aae8636313f7727c6d`
+
 ### 权限模式选择器对标 Trae 样式
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`4c0a8dac3cdb88bf3d35d04d50cc680b9a20b3d19fd42e051a59f7cfa2da43b3`（3059566 B）
