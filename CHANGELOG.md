@@ -5,6 +5,17 @@
 
 ## 2026-09-26
 
+### 临时目录分组也有「+」新建会话
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`5a178da4ebb0d3ea1fdbcc75b1619422828093423b570fa87d8be121ba6a373c`（3064154 B）
+  - 改后 sha256：`8534b653ee97beee16b298e46b55310bed738e07b505d0e8d3d1525f42674cd6`（3064385 B）
+- 摘要：
+  - GroupHeader 新增 cwd prop（调用处按 g.id/g.key 判定传入 threads[0].cwd，"未分组"不传）
+  - 「+」按钮显示条件 project → (project || cwd)；无 project 时点击走 ensureForPath(cwd) 自动建同名工作区再 startThread（与选文件夹自动建工作区行为一致）
+  - 「...」菜单及弹出层补回 project 守卫（拆出 Fragment 后防越权）
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新标识 ✓
+- 整包 sha256：`b0412d17ea02adaeb86209bc6fd2c8a1a773c1fd18c71670cec16a271df131b4`
+
 ### 工作区「+」按钮悬停即时提示
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`ad3370caec440fe5854c9315b371bb15fc9d839ffaa11edf062d70271ef9a6d0`（3063638 B）
