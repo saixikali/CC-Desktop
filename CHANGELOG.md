@@ -5,6 +5,19 @@
 
 ## 2026-09-26
 
+### 工具卡片样式对标 Trae（思考/命令/MCP 卡 + 徽章 pill 化）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`13b60213e8ff1d771d3032231375c099abd14c540efb2a00076a775469929670`（3062178 B）
+  - 改后 sha256：`2521c997731e44cb4f4104ecff5ac7822d0e709389173f8e11cc33e12db5b415`（3062258 B）
+- 摘要：
+  - Badge 全局 pill 化：rounded-md→rounded-full、text-[11px]→[10px]、px-1.5→px-2（exit/completed/回合状态徽章统一为 Trae 风格）
+  - 命令卡：rounded-xl、行高 py-2、图标 Terminal→SquareTerminal（`>_` 造型）、命令文本提亮为 text-text
+  - MCP 卡：rounded-xl、行高 py-2、标题明暗反转（server 名灰、tool 名亮色加粗，对齐截图 `claude / Read`）
+  - 思考过程卡：rounded-xl、背景改实底 bg-surface-2、标题文字提亮
+  - GenericItem 容器圆角统一 rounded-xl
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897 packed，仅 1 成员差异）；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含新类名 ✓
+- 整包 sha256：`cdbd2e92d5cdaf67b8e0963819b7e7b14054094b4c626fc61c042ebcb0e3086f`
+
 ### 绕过权限二次风险确认（对标 Trae）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`d12a96d196feabd5acbe0fcc2b3e58e2eadd1ecdff7d3a0f7da179a14bf6dd8e`（3059672 B）
