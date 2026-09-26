@@ -3,6 +3,16 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-09-27
+
+### 侧栏会话行「⋯」操作按钮常显（原仅悬停出现，入口隐蔽）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f`（3080112 B）
+  - 改后 sha256：`bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02`（3080088 B）
+- 摘要：ThreadItemMenu 触发按钮 class 由 `hidden … group-hover:flex`（open 时追加 `flex`）改为常显 `flex …`（open 时仅追加高亮底色）；分组头（GroupHeader）的「⋯」保持悬停显示不变。菜单内容（重命名/归档/删除会话，删除有二次确认）与 IPC 不变
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；CDP 实测未悬停时全部会话行按钮 display=flex（20px）且截图确认；分组头无常显按钮 ✓
+- 整包 sha256：`e3852971f6e28bf8dbfe0c3f1702dec4d6b39e24663752a4c11bc21196f54ad0`
+
 ## 2026-09-26
 
 ### 数据修复（非 app.asar 补丁）：registry 2 条会话的旧 C 盘 cwd
@@ -243,9 +253,9 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「运行数据整体迁移到安装盘（userData → d:\CC Desktop\data）」） | `130e617d0fbdc986d0d6ee951027735ca1de5030f06c87c6c439db8830491698` |
+| **当前线上包**（截至 2026-09-26「侧栏会话行「⋯」操作按钮常显（原仅悬停出现，入口隐蔽）」） | `e3852971f6e28bf8dbfe0c3f1702dec4d6b39e24663752a4c11bc21196f54ad0` |
 | └ out/main/index.js（114820 B） | `b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5` |
-| └ out/renderer/assets/index-CnGZ3Eox.js（3080112 B） | `1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式
