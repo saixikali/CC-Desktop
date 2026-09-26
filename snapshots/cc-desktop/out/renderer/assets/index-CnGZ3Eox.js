@@ -15812,8 +15812,8 @@ function ThreadItemMenu({ threadId, archived }) {
       {
         title: t.threadMenu.title,
         className: cn$1(
-          "hidden h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-surface-3 hover:text-text group-hover:flex",
-          open2 && "flex bg-surface-3 text-text"
+          "flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-surface-3 hover:text-text",
+          open2 && "bg-surface-3 text-text"
         ),
         onClick: (e) => {
           e.stopPropagation();
