@@ -5,6 +5,17 @@
 
 ## 2026-09-26
 
+### 整行点击展开/折叠（分组名、文件更改汇总卡）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`6f270ac9c77481f48ceed17436b74328bced443dd3a3b71c9b7d65b88b08e45e`（3067485 B）
+  - 改后 sha256：`4cda7c79d9a8a4f5d23f56e84c0d5f3d6e1a6e3f62be66a80e7b6926228d1277`（3067574 B）
+- 摘要：
+  - 侧栏分组名 button onClick 增加 onToggleCollapse()（原本只切 active，只能点小箭头折叠）
+  - 文件更改汇总卡头部由「div + 小箭头 button」改为整行 role=button 可点（含 Enter/Space 键盘支持），撤销按钮加 stopPropagation
+  - 命令卡/MCP 卡/ActionStack 头部原本已是整行 <button>，未动
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认 ✓
+- 整包 sha256：`3ed93e2a01e756918e50c5ab624e5653a8a038db4d770ac030ebf600442e425c`
+
 ### 连续工具卡收拢为「N 项操作」折叠堆叠
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`22ade0e577651606b0e7f3e4ad0e93f0d0ef5383fac480408a2e37d010398cae`（3064384 B）
