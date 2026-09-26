@@ -12,6 +12,39 @@ import { z } from "zod";
 import { fileURLToPath } from "node:url";
 import pty from "node-pty";
 import updaterModule from "electron-updater";
+// === 运行数据目录重定向到安装盘（与 CC Desktop.exe 同级的 data/，如 d:\CC Desktop\data）===
+// 必须在 app ready 之前、任何 getPath("userData") 消费之前执行。
+// 首次启动若默认目录（%APPDATA%/CC Desktop）有旧数据，先整目录拷到新位置（跨盘 rename 会 EXDEV，故用拷贝）。
+{
+  const ccDataDir = join(dirname(app.getPath("exe")), "data");
+  const defaultUserData = app.getPath("userData");
+  if (ccDataDir !== defaultUserData) {
+    try {
+      const oldExists = existsSync(defaultUserData);
+      const newExists = existsSync(ccDataDir);
+      if (oldExists && !newExists) {
+        cpSync(defaultUserData, ccDataDir, { recursive: true });
+        try {
+          rmSync(defaultUserData, { recursive: true, force: true });
+        } catch (e2) {
+          console.warn("[cc] 旧数据目录拷贝完成，但清理旧副本失败（可能被占用，可稍后手动删除）:", defaultUserData, e2?.message);
+        }
+      } else if (oldExists && newExists) {
+        // 异常半迁移：仅补齐新目录中缺失的顶层条目，绝不覆盖新数据
+        for (const entry of readdirSync(defaultUserData)) {
+          const src = join(defaultUserData, entry);
+          const dst = join(ccDataDir, entry);
+          if (!existsSync(dst)) cpSync(src, dst, { recursive: true });
+        }
+      } else if (!oldExists && !newExists) {
+        mkdirSync(ccDataDir, { recursive: true });
+      }
+    } catch (e2) {
+      console.error("[cc] 数据目录迁移失败，回退使用默认目录:", e2?.message);
+    }
+    if (existsSync(ccDataDir)) app.setPath("userData", ccDataDir);
+  }
+}
 const DEFAULTS$1 = {
   wizardCompleted: false,
   activeProjectId: null,

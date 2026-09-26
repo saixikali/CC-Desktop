@@ -5,6 +5,18 @@
 
 ## 2026-09-26
 
+### 运行数据整体迁移到安装盘（userData → d:\CC Desktop\data）
+- 成员：`out/main/index.js`
+  - 改前 sha256：`f65fcee7c1b520c801940422bd00ecdbab6a21f6dcce389288ee473325305b27`（113157 B）
+  - 改后 sha256：`b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5`（114820 B）
+- 摘要：
+  - 在 import 之后、任何业务代码之前（app ready 前）重定向 userData 为 `<exe目录>/data`（动态推导，如 `d:\CC Desktop\data`），projects.json/settings.json/window-state.json/claude-backend/logs/sent-images/chat-space/cost-rates.json 及 Chromium 缓存/lockfile 全部落 D 盘
+  - 首启自动迁移：旧 `%APPDATA%/CC Desktop` 有数据而新目录不存在 → cpSync 整目录（跨盘 rename 会 EXDEV）→ 成功后 rmSync 旧目录；两边都存在则只补齐缺失顶层条目不覆盖新数据；失败回退默认目录不阻断启动
+  - 实测：11.7 MB 旧数据一次性迁入，C 盘旧目录删除，4 进程在新 lockfile 上正常运行，日志持续写入 D 盘
+  - 插件目录维持上一轮的 `<exe目录>/plugins` 与 `plugins-state.json`，不在 data 内
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后线上成员确认含 ccDataDir ✓；文件级核验 D 盘关键文件齐全、C 盘旧目录不存在 ✓
+- 整包 sha256：`130e617d0fbdc986d0d6ee951027735ca1de5030f06c87c6c439db8830491698`
+
 ### 插件目录迁移到安装盘（D 盘），不再写入 C 盘用户目录
 - 成员：`out/main/index.js`
   - 改前 sha256：`13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44`（112982 B）
@@ -224,8 +236,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「插件目录迁移到安装盘（D 盘），不再写入 C 盘用户目录」） | `3438758458f6f1f141f40ac6897c9085e4d893ad4ad95b540099adc53fd5a554` |
-| └ out/main/index.js（113157 B） | `f65fcee7c1b520c801940422bd00ecdbab6a21f6dcce389288ee473325305b27` |
+| **当前线上包**（截至 2026-09-26「运行数据整体迁移到安装盘（userData → d:\CC Desktop\data）」） | `130e617d0fbdc986d0d6ee951027735ca1de5030f06c87c6c439db8830491698` |
+| └ out/main/index.js（114820 B） | `b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3080112 B） | `1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
