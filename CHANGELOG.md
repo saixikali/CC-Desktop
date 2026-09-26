@@ -5,6 +5,13 @@
 
 ## 2026-09-26
 
+### 数据修复（非 app.asar 补丁）：registry 2 条会话的旧 C 盘 cwd
+- 文件：`d:\CC Desktop\data\claude-backend\registry.json`（备份：同目录 `registry.json.presubst.bak`，2783 B）
+- 现象：迁移后核验发现 2 条早期「对话」模式会话（`bd3ac64e…`、`1584936a…`）的 cwd 仍为 `C:\Users\Administrator\AppData\Roaming\CC Desktop\chat-space`（transcript 本身已在 D 盘，仅记录字段为旧路径）
+- 操作：停服（0 进程）→ 备份 → 精确前缀替换为 `d:\CC Desktop\data\chat-space`（仅 cwd 字段，2 条）→ JSON 校验 → 重启（4 进程）
+- 验证：6 条会话 cwd 全部为 D/F 盘实际目录；全文已无 AppData 旧前缀；应用重启后未回写
+- 说明：`78b2b701` 无 transcript 是迁移前既有状态（建会话未产生对话），非迁移导致
+
 ### 运行数据整体迁移到安装盘（userData → d:\CC Desktop\data）
 - 成员：`out/main/index.js`
   - 改前 sha256：`f65fcee7c1b520c801940422bd00ecdbab6a21f6dcce389288ee473325305b27`（113157 B）
