@@ -16059,8 +16059,8 @@ function GroupHeader({
             {
               title: t.threadMenu.title,
               className: cn$1(
-                "hidden h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-surface-3 hover:text-text group-hover:flex",
-                menuOpen && "flex bg-surface-3 text-text"
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-surface-3 hover:text-text",
+                menuOpen && "bg-surface-3 text-text"
               ),
               onClick: (e) => {
                 e.stopPropagation();
