@@ -7,8 +7,10 @@
 // 同时打印基线：packed 成员数 / 空文件数 / integrity 不符数（CC Desktop 当前基线 7897 / 2 / 0）。
 //
 // 注意：本脚本用 spawnSync 起子进程并捕获输出。在禁止 piped stdio 的受限沙箱下子进程会
-// EPERM 启动失败（status 为 null），此时会明确报「子进程可正常启动 ✗」，而不会被
-// 误判成「守卫生效」的假绿。
+// EPERM 启动失败（status 为 null）——那是**环境不支持**，脚本会以退出码 2 明确区分，
+// 既不会被误判成「守卫生效」的假绿，也不会被误读成「回归挂了」。请在普通终端运行。
+//
+// 退出码：0 = 全部通过，1 = 断言失败，2 = 用法/环境不支持。
 //
 // 用法: node test-roundtrip.mjs <app.asar>
 import crypto from 'node:crypto';
@@ -38,6 +40,17 @@ const ok = (cond, msg) => {
   console.log(`${cond ? '✓' : '✗'} ${msg}`);
   if (!cond) failures++;
 };
+
+// 环境探针：受限沙箱禁止 piped stdio 时 spawnSync 会 EPERM。这种情况是环境不支持，
+// 不是断言失败（以退出码 2 报告），免得被误读成回归/或被"修"回旧的假绿写法。
+const probe = spawnSync(process.execPath, ['-e', '0'], { encoding: 'utf8' });
+if (probe.error) {
+  console.error(
+    `⊘ 环境禁止子进程（${probe.error.code || probe.error.message}）：本测试需要 spawnSync 捕获子进程输出，` +
+      '请在普通终端（非受限 Agent 沙箱）运行。'
+  );
+  process.exit(2);
+}
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'asar-rt-'));
 try {

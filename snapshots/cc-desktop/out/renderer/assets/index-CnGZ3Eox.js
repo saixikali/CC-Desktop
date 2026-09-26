@@ -15941,13 +15941,35 @@ function GroupHeader({
   active,
   collapsed,
   count,
+  cwd: cwdProp,
   onToggleCollapse,
   onMenu
 }) {
   const setActive = useProjectsStore((s16) => s16.setActive);
   const projects = useProjectsStore((s16) => s16.items);
+  const startThread = useThreadsStore((s16) => s16.start);
+  const openThread = useThreadViewStore((s16) => s16.open);
+  const toastError = useToastStore((s16) => s16.error);
+  const [creating, setCreating] = reactExports.useState(false);
+  const [tipOpen, setTipOpen] = reactExports.useState(false);
   const [menuOpen, setMenuOpen] = reactExports.useState(false);
   const project = projectId ? projects.find((p) => p.id === projectId) ?? null : null;
+  const newThreadInProject = async (e) => {
+    e.stopPropagation();
+    const cwd2 = project?.roots?.[0] ?? cwdProp;
+    if (!cwd2 || creating) return;
+    setCreating(true);
+    try {
+      const pendingOv = useTurnOverridesStore.getState().pending;
+      const resolved = project ?? await useProjectsStore.getState().ensureForPath(cwd2);
+      const id = await startThread(cwd2, resolved?.id ?? null, pendingOv.permission);
+      await openThread(id);
+    } catch (err) {
+      toastError(t.toast.actionFailed, err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(
     "div",
     {
@@ -15979,7 +16001,10 @@ function GroupHeader({
           "button",
           {
             className: "flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left",
-            onClick: () => void setActive(active ? null : projectId),
+            onClick: () => {
+              void setActive(active ? null : projectId);
+              onToggleCollapse();
+            },
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(Folder, { className: cn$1("h-3.5 w-3.5 shrink-0", active ? "text-accent" : "text-text-faint"), strokeWidth: 1.8 }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "truncate font-medium", children: name2 }),
@@ -15987,8 +16012,21 @@ function GroupHeader({
             ]
           }
         ),
-        project && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          (project || cwdProp) && /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              onClick: (e) => void newThreadInProject(e),
+              onMouseEnter: () => setTipOpen(true),
+              onMouseLeave: () => setTipOpen(false),
+              className: "relative hidden h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-surface-3 hover:text-text group-hover:flex",
+              children: [
+                creating ? /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { className: "h-3.5 w-3.5 animate-spin" }) : /* @__PURE__ */ jsxRuntimeExports.jsx(Plus, { className: "h-3.5 w-3.5", strokeWidth: 1.8 }),
+                tipOpen && !creating && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "absolute", top: "calc(100% + 6px)", right: -4, zIndex: 50, pointerEvents: "none", whiteSpace: "nowrap" }, className: "rounded-md border border-border bg-surface px-2 py-1 text-[10px] text-text shadow-lg", children: t.common.newThread })
+              ]
+            }
+          ),
+          project && /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
               title: t.threadMenu.title,
@@ -16003,7 +16041,7 @@ function GroupHeader({
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(Ellipsis, { className: "h-3.5 w-3.5" })
             }
           ),
-          menuOpen && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          project && menuOpen && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 z-30", onMouseDown: () => setMenuOpen(false) }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "absolute right-1 top-7 z-40 flex w-32 flex-col gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-lg shadow-shadow", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -16481,6 +16519,7 @@ function Sidebar() {
                   active: g.id !== null && g.id === activeProjectId,
                   collapsed: groupCollapsed,
                   count: g.threads.length,
+                  cwd: g.id !== null || g.key ? g.threads[0]?.cwd ?? null : null,
                   onToggleCollapse: () => toggleGroup(groupKey),
                   onMenu: (target, kind) => kind === "rename" ? setRenameTarget(target) : setDeleteTarget(target)
                 }
@@ -82745,13 +82784,13 @@ function TurnChangesSummary({ turn }) {
     }
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: cn$1("overflow-hidden rounded-xl border bg-surface-2", reverted ? "border-border/50 opacity-75" : "border-border"), children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 px-3 py-2", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", title: open2 ? "收起" : "展开", onClick: () => setOpen2((v2) => !v2), className: "flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-faint hover:bg-hover hover:text-text-muted", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { className: "cc-chev h-3.5 w-3.5", style: open2 ? { transform: "rotate(90deg)" } : void 0 }) }),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { role: "button", tabIndex: 0, title: open2 ? "收起" : "展开", onClick: () => setOpen2((v2) => !v2), onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen2((v2) => !v2); } }, className: "flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-surface-3/50", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { className: "cc-chev h-3.5 w-3.5 shrink-0 text-text-faint", style: open2 ? { transform: "rotate(90deg)" } : void 0 }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(FileDiff, { className: "h-3.5 w-3.5 shrink-0 text-text-muted", strokeWidth: 1.7 }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[12.5px] text-text-muted", children: reverted ? `已撤销 ${revertedSet.size} 个文件的更改` : `${entries.length} 个文件已更改` }),
       !reverted && totals.added > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-[12px] font-medium text-success", children: `+${totals.added}` }),
       !reverted && totals.deleted > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-[12px] font-medium text-danger", children: `-${totals.deleted}` }),
-      !reverted && revertable.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", onClick: () => void onRevert(), disabled: busy, className: "ml-auto flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] text-text-muted hover:bg-hover hover:text-text disabled:opacity-50", children: [
+      !reverted && revertable.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", onClick: (e) => { e.stopPropagation(); void onRevert(); }, disabled: busy, className: "ml-auto flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11.5px] text-text-muted hover:bg-hover hover:text-text disabled:opacity-50", children: [
         UNDO_ICON,
         busy ? "撤销中…" : "撤销"
       ] })
@@ -82870,6 +82909,51 @@ const TurnGroup = reactExports.memo(function TurnGroup({ turn }) {
     }
     return [...user, ...actions, ...text];
   }, [filtered]);
+  // 把 items 渲染成节点数组，其中连续的 action 工具卡（>=2）收拢成「N 项操作」堆叠（默认折叠，点头部展开）
+  const itemNodes = reactExports.useMemo(() => {
+    const nodes = [];
+    const runs = [];
+    let run = null;
+    const flush = () => {
+      if (run && run.items.length > 0) { runs.push(run); run = null; }
+    };
+    items.forEach((item, i) => {
+      const t = item?.type;
+      const isAction = t !== "userMessage" && t !== "agentMessage";
+      if (!isAction) {
+        flush();
+        nodes.push(/* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-in", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ThreadItemView, { item, streaming: !finished }) }, item.id ?? i));
+        return;
+      }
+      if (!run) run = { items: [], key: item.id ?? i };
+      run.items.push({ item, i });
+    });
+    flush();
+    const renderRun = (r) => {
+      if (r.items.length < 2) {
+        const { item, i } = r.items[0];
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-in", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ThreadItemView, { item, streaming: !finished }) }, item.id ?? i);
+      }
+      const stackKey = `stack-${r.key}`;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(ActionStack, { items: r.items, streaming: !finished }, stackKey);
+    };
+    const out = [];
+    let ri = 0;
+    // nodes 只含非 action 节点，runs 按序含 action 堆叠；需按原 items 顺序交错还原
+    let ni = 0;
+    items.forEach((item, i) => {
+      const t = item?.type;
+      if (t !== "userMessage" && t !== "agentMessage") {
+        // 进入新 run 的起点才输出（run 已按连续段聚合）
+        const prev = i > 0 ? items[i - 1]?.type : null;
+        const prevIsAction = prev !== "userMessage" && prev !== "agentMessage" && prev != null;
+        if (!prevIsAction) { out.push(renderRun(runs[ri])); ri += 1; }
+      } else {
+        out.push(nodes[ni]); ni += 1;
+      }
+    });
+    return out;
+  }, [items, finished]);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2.5", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2 text-[10px] text-text-faint", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "h-px flex-1 bg-border" }),
@@ -82882,7 +82966,7 @@ const TurnGroup = reactExports.memo(function TurnGroup({ turn }) {
       turn.startedAt != null && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: formatTime(turn.startedAt) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "h-px flex-1 bg-border" })
     ] }),
-    items.map((item, i) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-in", children: /* @__PURE__ */ jsxRuntimeExports.jsx(ThreadItemView, { item, streaming: !finished }) }, item.id ?? i)),
+    itemNodes,
     finished && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-in", children: /* @__PURE__ */ jsxRuntimeExports.jsx(TurnChangesSummary, { turn }) }),
     (failed || error2?.message != null) && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-in", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(CircleX, { className: "mt-0.5 h-3.5 w-3.5 shrink-0" }),
@@ -82931,6 +83015,16 @@ const TurnGroup = reactExports.memo(function TurnGroup({ turn }) {
     allItems.length === 0 && !failed && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "py-1 text-center text-[10px] text-text-faint", children: "（空回合）" })
   ] });
 });
+function ActionStack({ items: stackItems, streaming }) {
+  const [open, setOpen] = reactExports.useState(false);
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "cc-in overflow-hidden rounded-xl border border-border/60 bg-surface", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", onClick: () => setOpen((v2) => !v2), className: "flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-text-muted hover:bg-hover hover:text-text", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { className: "cc-chev h-3 w-3 shrink-0 text-text-faint", style: open ? { transform: "rotate(90deg)" } : void 0 }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "flex-1", children: [stackItems.length, " 项操作"] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cn$1("cc-collap", !open && "is-closed"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-collap-in", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-1 border-t border-border/60 p-1", children: stackItems.map(({ item, i }) => /* @__PURE__ */ jsxRuntimeExports.jsx(ThreadItemView, { item, streaming }, item.id ?? i)) }) }) })
+  ] });
+}
 function LoadingPane() {
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-4 p-6", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsx(Skeleton, { className: "h-5 w-72" }),
