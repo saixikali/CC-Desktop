@@ -160,4 +160,22 @@ node "<skill>\scripts\test-roundtrip.mjs" "<安装目录>\resources\app.asar"
 node "<skill>\scripts\check-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar"
 ```
 
-两个脚本都用 `spawnSync` 起子进程。在禁止 piped stdio 的受限沙箱下子进程会以 EPERM 启动失败（`status` 为 `null`）——脚本会明确报「子进程可正常启动 ✗」，**不会**把启动失败误判成断言通过（这正是修掉的一类假绿）；这种情况下请在普通终端重跑，别当成脚本缺陷。
+两个脚本都用 `spawnSync` 起子进程。受限沙箱（禁止 piped stdio）下子进程会以 EPERM 启动失败——`test-roundtrip.mjs` 现在以**退出码 2** 明确报告"环境不支持"（0=通过 / 1=断言失败 / 2=环境不支持），**不会**把启动失败误判成断言通过（这正是修掉的一类假绿）。遇到 2 就在普通终端重跑，别当成脚本缺陷，也别把断言改回去。
+
+## 串行作业约定（多 agent / 多人共用同一台机器时必读）
+
+同一个安装目录、同一棵技能库树上，**任何时刻只允许一个 agent 动手**。已发生过一次真实事故：两个 agent 并发作业时，一方的脚本修复被另一方的批量操作回退成旧版，同时台账锚点块连续 6 个补丁没更新（`check-ledger` 亮红才发现）。并发还会让"停服替换 asar"与"读 asar"互相踩。
+
+规则：
+
+1. **谁动手由人派发**，不要靠两个 agent 自己协商；写锁文件没用——另一个 agent 不会主动去读。
+2. 一个补丁的完整收尾是下面三条，**跑完并提交后才算交棒**：
+
+```powershell
+node "<skill>\scripts\sync-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar" "<skill>\snapshots\<应用名>"
+node "<skill>\scripts\check-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar"   # 必须 exit 0
+git -C "<skill>" add -A; git -C "<skill>" commit -m "patch: <摘要>"
+```
+
+3. 交棒前确认 `git status` 干净、`check-ledger` exit 0、`_asar_work` 里没有自己留下的 0 字节占位包（`app.pN.asar`）；占位包若被别的进程占用句柄删不掉，要在台账里记一行"待补删"。
+4. 接棒方开工前先跑一次 `check-ledger`：不为 0 就说明上一手没交干净，先补台账再动。
