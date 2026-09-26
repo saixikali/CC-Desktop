@@ -33,7 +33,9 @@ const title =
     .filter((l) => l.startsWith('### '))
     .map((l) => l.slice(4).trim())
     .find((t) => !/工具链|工程化|非 app\.asar 成员/.test(t)) ?? '(未命名)';
-const today = new Date().toISOString().slice(0, 10);
+// 标签日期取**本地**日期：toISOString() 是 UTC，东八区凌晨会算成前一天（台账日期一律按本地）
+const now = new Date();
+const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 const archive = readArchive(asarPath);
 const pkgHash = sha256(fs.readFileSync(asarPath));
