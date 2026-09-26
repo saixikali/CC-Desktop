@@ -21,11 +21,11 @@
 
 **继续改**（下次补丁的基线）：直接以这里的文件为基础编辑，改动越少越好；改完 `node --check`，再走 patch → verify → 停服替换。
 
-**重建当前线上状态**（例如重装应用后）：`app.asar.orig.bak` 是 2026-09-20 的最初原版，把它当输入，按 `CHANGELOG.md` 的顺序或直接用本目录文件链式 patch 回去即可：
+**重建当前线上状态**（例如重装应用后）：`app.asar.orig.bak` 是 2026-09-20 的最初原版，把它当输入，按 `CHANGELOG.md` 的顺序或直接用本目录文件链式 patch 回去即可（`<skill>` 指公开仓库 `electron-asar-patch`，`<snap>` 指本目录）：
 
 ```powershell
-node scripts\patch-asar.mjs <原版或当前>.asar out/main/index.js snapshots\cc-desktop\out\main\index.js step1.asar
-node scripts\verify-asar.mjs <原版或当前>.asar step1.asar out/main/index.js snapshots\cc-desktop\out\main\index.js
+node "<skill>\scripts\patch-asar.mjs" <原版或当前>.asar out/main/index.js "<snap>\out\main\index.js" step1.asar
+node "<skill>\scripts\verify-asar.mjs" <原版或当前>.asar step1.asar out/main/index.js "<snap>\out\main\index.js"
 # ……对其余两个成员重复，最后安装 stepN.asar
 ```
 
@@ -33,14 +33,12 @@ node scripts\verify-asar.mjs <原版或当前>.asar step1.asar out/main/index.js
 
 ## 维护规则
 
-每打一个补丁并部署后，重新抽一次改后成员覆盖本目录，与 `CHANGELOG.md` 的锚点块**一起提交**：
+每打一个补丁并部署后，用 `sync-ledger.mjs` 一次性刷新台账锚点块与本目录（幂等，别手工抽文件）：
 
 ```powershell
-$asar='<安装目录>\resources\app.asar'; $snap='<本目录>'
-node scripts\read-entry.mjs $asar 'out/main/index.js' "$snap\out\main\index.js"
-node scripts\read-entry.mjs $asar 'out/renderer/assets/index-CnGZ3Eox.js' "$snap\out\renderer\assets\index-CnGZ3Eox.js"
-node scripts\read-entry.mjs $asar 'out/renderer/assets/index-fIxHbQTX.css' "$snap\out\renderer\assets\index-fIxHbQTX.css"
-node scripts\check-ledger.mjs CHANGELOG.md $asar   # 哈希对不上就别提交
+$skill='<公开仓库路径>'; $asar='<安装目录>\resources\app.asar'; $snap='D:\CC Desktop\_asar_snapshots\cc-desktop'
+node "$skill\scripts\sync-ledger.mjs" "$skill\CHANGELOG.md" $asar $snap
+node "$skill\scripts\check-ledger.mjs" "$skill\CHANGELOG.md" $asar    # 必须 exit 0，对不上就别提交
 ```
 
 注意：渲染层 bundle 是压缩单行代码，**不要**对它做 diff 评审（一行 3 MB 没有可读性），要评审就读 `CHANGELOG.md` 的摘要 + 用 grep 定位关键标识串。
