@@ -5,6 +5,20 @@
 
 ## 2026-09-26
 
+### 插件框架 v1（对标 DSH：MCP Server + Claude Code hooks 脚本）
+- 成员（链式三成员）：
+  - `out/main/index.js`：104880 B `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` → 112982 B `13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44`
+  - `out/preload/index.cjs`：4719 B `99b64627f4e19f0bbb3e1ac3395823630de876c5e9b26c4945ddf450b2c21d4f` → 4834 B `adb39324d550610d908fe176a3bc855f26360113fc12df6e8368e55abbe682c6`
+  - `out/renderer/assets/index-CnGZ3Eox.js`：3067574 B `4cda7c79d9a8a4f5d23f56e84c0d5f3d6e1a6e3f62be66a80e7b6926228d1277` → 3080112 B `1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f`
+- 设计：
+  - 插件目录 `%APPDATA%/CC Desktop/plugins/<id>/plugin.json`；状态 `%APPDATA%/CC Desktop/plugins.json`，新插件默认停用
+  - manifest：`{ id?, name, description, version?, author?, mcp: {<server>:{type:"stdio",command,args,env,cwd?}}, hooks: {<Event>: [{matcher?,timeout?,hooks:[{type:"command",command}]}]}`，至少含有效 mcp/hooks 之一；命令中 `${PLUGIN_DIR}` 替换为插件目录
+  - 主进程新增 PluginService（scan/validate/list/setEnabled/openDir/runtime）；ensureSession 合并：mcpServers → SDK `options.mcpServers`（CLI --mcp-config），hooks → `options.settings` JSON 字符串（CLI --settings），不改动用户 ~/.claude 配置；合并失败本回合降级不加载
+  - IPC 新增 `plugins:list / plugins:set-enabled / plugins:open-dir`（zod 校验、ID 白名单防路径穿越）；preload 暴露 `window.cc.plugins.*`
+  - 渲染层设置页新增「插件」分区（Wrench 图标）：插件配置（可折叠详情卡：标识/版本/类型/目录/MCP 服务/钩子事件/启停）+ 插件列表（双列网格、搜索、类型/状态徽章、Toggle、打开目录），顶部「打开插件目录/刷新」，底部「新会话生效」提示；无效插件红卡展示错误且不可启用
+- 验证：三成员 node --check ✓；链式 patch 每步 verify 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后线上三成员抽包确认新标识 ✓
+- 整包 sha256：`8221c596bd4ec69b1584d4e1f7b5e7a225450b9b2fc1c1d6bcee732209776251`
+
 ### 工具链：一键对齐 + 回归脚本环境自适应（本目录，非 app.asar 成员；未打应用补丁）
 - **新增 `sync-ledger.mjs`**：一条命令把「当前线上包」锚点块与磁盘真实 asar 对齐（整包 sha256 + 块内每个成员的哈希/字节数），并把改后成员刷新进 `snapshots/<应用>/`。里程碑锚点块不动；标签自动取最新补丁条目标题（跳过"工具链/工程化"这类非补丁小节）。**以后每个补丁部署后跑一次，就不会再出现"记了条目忘了锚点"的漂移。**
 - **`test-roundtrip.mjs` 增环境探针**：受限沙箱（禁止 piped stdio）下 `spawnSync` 会 EPERM，现在以**退出码 2**明确报告"环境不支持"，与"断言失败(1)"区分开——此前这一条曾被误读成回归，并把上一轮的假绿修复回退掉了（本次已取回）。
@@ -202,9 +216,9 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「整行点击展开/折叠（分组名、文件更改汇总卡）」） | `3ed93e2a01e756918e50c5ab624e5653a8a038db4d770ac030ebf600442e425c` |
-| └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
-| └ out/renderer/assets/index-CnGZ3Eox.js（3067574 B） | `4cda7c79d9a8a4f5d23f56e84c0d5f3d6e1a6e3f62be66a80e7b6926228d1277` |
+| **当前线上包**（截至 2026-09-26「插件框架 v1（对标 DSH：MCP Server + Claude Code hooks 脚本）」） | `8221c596bd4ec69b1584d4e1f7b5e7a225450b9b2fc1c1d6bcee732209776251` |
+| └ out/main/index.js（112982 B） | `13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3080112 B） | `1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式

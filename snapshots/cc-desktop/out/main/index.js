@@ -615,11 +615,161 @@ async function buildFileChanges(toolName, input) {
     return [{ path, kind, oldText: void 0, newText: void 0 }];
   }
 }
+/**
+ * 插件服务（对标 DSH 插件体系，v1 支持两种形态）：
+ *  - MCP Server：manifest.mcp 映射，合并进 SDK options.mcpServers（CLI --mcp-config）
+ *  - Hooks 脚本：manifest.hooks（Claude settings hooks 结构），合并进 SDK options.settings（CLI --settings）
+ * 目录：%APPDATA%/CC Desktop/plugins/<插件文件夹>/plugin.json
+ * 状态：%APPDATA%/CC Desktop/plugins.json，新插件默认停用，需用户显式启用
+ * manifest 中可用 ${PLUGIN_DIR} 占位符，替换为插件目录绝对路径
+ */
+const PLUGIN_ID_RE = /^[@a-zA-Z0-9._-]{1,120}$/;
+function pluginSubst(value, base) {
+  return typeof value === "string" ? value.split("${PLUGIN_DIR}").join(base) : value;
+}
+class PluginService {
+  constructor(userDataDir) {
+    this.dir = join(userDataDir, "plugins");
+    this.file = join(userDataDir, "plugins.json");
+  }
+  loadState() {
+    try {
+      const raw = JSON.parse(readFileSync(this.file, "utf8"));
+      if (raw && typeof raw === "object" && raw.enabled && typeof raw.enabled === "object") return raw.enabled;
+    } catch {
+    }
+    return {};
+  }
+  saveState(enabled) {
+    mkdirSync(this.dir, { recursive: true });
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ version: 1, enabled }, null, 2), "utf8");
+    renameSync(tmp, this.file);
+  }
+  validMcp(mcp) {
+    return mcp && typeof mcp === "object" && !Array.isArray(mcp) && Object.values(mcp).every((c) => c && typeof c === "object" && (c.type === void 0 || c.type === "stdio") && typeof c.command === "string" && c.command.length > 0);
+  }
+  validHooks(hooks) {
+    return hooks && typeof hooks === "object" && !Array.isArray(hooks) && Object.values(hooks).every((arr) => Array.isArray(arr) && arr.every((e2) => e2 && typeof e2 === "object" && Array.isArray(e2.hooks) && e2.hooks.every((h2) => h2 && typeof h2 === "object" && (h2.type === void 0 || h2.type === "command") && typeof h2.command === "string" && h2.command.length > 0)));
+  }
+  readManifests() {
+    let folders = [];
+    try {
+      folders = readdirSync(this.dir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name).filter((n) => PLUGIN_ID_RE.test(n));
+    } catch {
+    }
+    return folders.map((folder) => {
+      const dir = join(this.dir, folder);
+      try {
+        const manifest = JSON.parse(readFileSync(join(dir, "plugin.json"), "utf8"));
+        if (!manifest || typeof manifest !== "object") throw new Error("plugin.json 不是有效对象");
+        const hasMcp = this.validMcp(manifest.mcp);
+        const hasHooks = this.validHooks(manifest.hooks);
+        if (!hasMcp && !hasHooks) throw new Error("plugin.json 需要包含有效的 mcp 或 hooks 配置");
+        return { id: folder, dir, manifest, hasMcp, hasHooks, error: null };
+      } catch (e) {
+        return { id: folder, dir, manifest: null, hasMcp: false, hasHooks: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    });
+  }
+  async list() {
+    await mkdir(this.dir, { recursive: true });
+    const enabledMap = this.loadState();
+    const items = this.readManifests().map((m) => {
+      const mf = m.manifest;
+      return {
+        id: m.id,
+        name: m.error ? m.id : typeof mf.name === "string" && mf.name ? mf.name : m.id,
+        description: m.error ? "" : typeof mf.description === "string" ? mf.description : "",
+        version: m.error ? "" : typeof mf.version === "string" ? mf.version : "",
+        author: m.error ? "" : typeof mf.author === "string" ? mf.author : "",
+        kind: m.hasMcp && m.hasHooks ? "hybrid" : m.hasMcp ? "mcp" : "hooks",
+        enabled: !m.error && enabledMap[m.id] === true,
+        error: m.error,
+        mcpServers: m.hasMcp ? Object.keys(mf.mcp) : [],
+        hookEvents: m.hasHooks ? Object.keys(mf.hooks) : [],
+        dir: m.dir
+      };
+    });
+    items.sort((a, b) => a.id.localeCompare(b.id));
+    return { dir: this.dir, count: items.length, enabledCount: items.filter((i2) => i2.enabled).length, plugins: items };
+  }
+  async setEnabled(id, enabled) {
+    if (!PLUGIN_ID_RE.test(id) || id.includes("..")) throw new Error("非法插件 ID");
+    const target = this.readManifests().find((m) => m.id === id);
+    if (!target) throw new Error("插件不存在，请先刷新列表");
+    if (target.error) throw new Error(`插件配置无效：${target.error}`);
+    const enabledMap = this.loadState();
+    if (enabled) enabledMap[id] = true;
+    else delete enabledMap[id];
+    this.saveState(enabledMap);
+    return this.list();
+  }
+  async openDir(id) {
+    await mkdir(this.dir, { recursive: true });
+    let target = this.dir;
+    if (id) {
+      if (!PLUGIN_ID_RE.test(id) || id.includes("..")) throw new Error("非法插件 ID");
+      target = join(this.dir, id);
+      if (!existsSync(target)) throw new Error("插件目录不存在");
+    }
+    const err = await shell.openPath(target);
+    if (err) throw new Error(err);
+    return null;
+  }
+  substMcp(cfg, base) {
+    const out = { type: "stdio", ...cfg };
+    if (typeof out.command === "string") out.command = pluginSubst(out.command, base);
+    if (Array.isArray(out.args)) out.args = out.args.map((a) => pluginSubst(a, base));
+    if (out.env && typeof out.env === "object") {
+      out.env = Object.fromEntries(Object.entries(out.env).map(([k, v]) => [k, pluginSubst(v, base)]));
+    }
+    if (typeof out.cwd === "string") out.cwd = pluginSubst(out.cwd, base);
+    return out;
+  }
+  substHookEntry(entry, base) {
+    const out = {};
+    if (typeof entry.matcher === "string") out.matcher = entry.matcher;
+    if (typeof entry.timeout === "number") out.timeout = entry.timeout;
+    out.hooks = entry.hooks.map((h2) => ({
+      type: "command",
+      ...h2,
+      command: pluginSubst(String(h2.command), base)
+    })).filter((h2) => h.command);
+    return out;
+  }
+  /** 合并所有已启用插件，返回可直接传给 SDK query 的 { mcpServers, settings } */
+  runtime() {
+    const enabledMap = this.loadState();
+    const mcpServers = {};
+    const hooks = {};
+    for (const m of this.readManifests()) {
+      if (m.error || enabledMap[m.id] !== true) continue;
+      if (m.hasMcp) {
+        for (const [name, cfg] of Object.entries(m.manifest.mcp)) {
+          if (Object.prototype.hasOwnProperty.call(mcpServers, name)) continue;
+          mcpServers[name] = this.substMcp(cfg, m.dir);
+        }
+      }
+      if (m.hasHooks) {
+        for (const [event, entries] of Object.entries(m.manifest.hooks)) {
+          const arr = hooks[event] || (hooks[event] = []);
+          for (const e2 of entries) arr.push(this.substHookEntry(e2, m.dir));
+        }
+      }
+    }
+    return {
+      mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : void 0,
+      settings: Object.keys(hooks).length > 0 ? JSON.stringify({ hooks }) : void 0
+    };
+  }
+}
 class ClaudeBackend extends EventEmitter {
   constructor(userDataDir) {
     super();
     this.userDataDir = userDataDir;
     this.dir = join(userDataDir, "claude-backend");
+    this.plugins = new PluginService(userDataDir);
   }
   userDataDir;
   id = "claude";
@@ -857,6 +1007,13 @@ class ClaudeBackend extends EventEmitter {
       openTurn: null
     };
     const claudeExe = resolveNativeExecutable();
+    // 已启用插件：MCP servers → --mcp-config；hooks 脚本 → --settings（不改动用户 ~/.claude 配置）
+    let pluginRuntime = { mcpServers: void 0, settings: void 0 };
+    try {
+      pluginRuntime = this.plugins.runtime();
+    } catch (err) {
+      logger.warn("插件运行时合并失败，本回合不加载插件", { err: err instanceof Error ? err.message : String(err) });
+    }
     const options = {
       cwd: rec.cwd,
       model: rec.model ?? void 0,
@@ -865,6 +1022,8 @@ class ClaudeBackend extends EventEmitter {
       includePartialMessages: true,
       abortController: controller,
       canUseTool: (toolName, toolInput, opts) => this.handleCanUseTool(rec, session2, toolName, toolInput, opts),
+      ...pluginRuntime.mcpServers ? { mcpServers: pluginRuntime.mcpServers } : {},
+      ...pluginRuntime.settings ? { settings: pluginRuntime.settings } : {},
       ...claudeExe ? { pathToClaudeCodeExecutable: claudeExe } : {},
       ...rec.sessionId ? { resume: rec.sessionId } : {}
     };
@@ -1559,6 +1718,11 @@ const CHANNELS = {
     updateCheck: "settings:update-check",
     updateDownload: "settings:update-download",
     updateInstall: "settings:update-install"
+  },
+  plugins: {
+    list: "plugins:list",
+    setEnabled: "plugins:set-enabled",
+    openDir: "plugins:open-dir"
   }
 };
 const EVENTS = {
@@ -1685,7 +1849,13 @@ const INPUTS = {
     closeToTray: z.boolean().optional(),
     theme: z.enum(["light", "dark"]).optional(),
     updateFeedUrl: z.string().url().nullable().optional()
-  }).strict()
+  }).strict(),
+  [CHANNELS.plugins.list]: voidInput,
+  [CHANNELS.plugins.setEnabled]: z.object({
+    id: z.string().min(1).max(120),
+    enabled: z.boolean()
+  }).strict(),
+  [CHANNELS.plugins.openDir]: z.object({ id: z.string().min(1).max(120).optional() }).strict().optional()
 };
 function runPowerShellCompress(srcDir, destZip) {
   return new Promise((resolve2, reject) => {
@@ -2144,7 +2314,11 @@ const HANDLERS = {
       theme: s2.theme,
       updateFeedUrl: s2.updateFeedUrl
     };
-  }
+  },
+  // ---------- 插件 ----------
+  [CHANNELS.plugins.list]: (ctx) => ctx.conversation.plugins.list(),
+  [CHANNELS.plugins.setEnabled]: (ctx, i) => ctx.conversation.plugins.setEnabled(i.id, i.enabled),
+  [CHANNELS.plugins.openDir]: (ctx, i) => ctx.conversation.plugins.openDir(i?.id)
 };
 function registerIpc(ctx, appVersion) {
   const fullCtx = { ...ctx, appVersion };

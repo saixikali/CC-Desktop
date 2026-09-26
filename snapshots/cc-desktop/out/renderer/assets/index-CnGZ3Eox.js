@@ -8288,7 +8288,35 @@ const t = {
       usage: "用量统计",
       general: "通用",
       diagnostics: "诊断",
-      about: "关于"
+      about: "关于",
+      plugins: "插件"
+    },
+    plugins: {
+      subtitle: "配置和查看本部署已安装的插件（MCP 服务 / 钩子脚本）。",
+      configTab: "插件配置",
+      listTab: "插件列表",
+      search: "搜索插件",
+      listTitle: "插件列表",
+      empty: "还没有安装插件",
+      emptyHint: "把插件文件夹放入插件目录：每个插件一个文件夹，内含 plugin.json（可声明 mcp 与 hooks）。新插件默认停用，需手动启用。",
+      enabled: "已启用",
+      disabled: "已停用",
+      openDir: "打开插件目录",
+      refresh: "刷新",
+      takeEffect: "启用 / 停用在新建的会话中生效",
+      kindMcp: "MCP 服务",
+      kindHooks: "钩子脚本",
+      kindHybrid: "混合",
+      invalid: "配置无效",
+      mcpServers: "MCP 服务",
+      hookEvents: "钩子事件",
+      version: "版本",
+      id: "标识",
+      kindLabel: "类型",
+      dir: "目录",
+      openPluginDir: "打开插件目录",
+      loadFailed: "加载插件列表失败",
+      toggleFailed: "切换插件状态失败"
     },
     about: {
       version: "应用版本",
@@ -93265,6 +93293,7 @@ const SECTIONS = [
   { key: "engine", icon: Cpu, label: t.settings.sections.engine },
   { key: "usage", icon: ChartColumn, label: t.settings.sections.usage },
   { key: "general", icon: Settings2, label: t.settings.sections.general },
+  { key: "plugins", icon: Wrench, label: t.settings.sections.plugins },
   { key: "diagnostics", icon: SquareTerminal, label: t.settings.sections.diagnostics },
   { key: "about", icon: Info$1, label: t.settings.sections.about }
 ];
@@ -93301,11 +93330,153 @@ function SectionPane({ section }) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(UsageSection, {});
     case "general":
       return /* @__PURE__ */ jsxRuntimeExports.jsx(GeneralSection, {});
+    case "plugins":
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(PluginsSection, {});
     case "diagnostics":
       return /* @__PURE__ */ jsxRuntimeExports.jsx(DiagnosticsSection, {});
     case "about":
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AboutPane, {});
   }
+}
+function PluginKindBadge({ kind }) {
+  const pt = t.settings.plugins;
+  const label = kind === "mcp" ? pt.kindMcp : kind === "hooks" ? pt.kindHooks : pt.kindHybrid;
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { tone: "neutral", children: label });
+}
+function PluginsSection() {
+  const pt = t.settings.plugins;
+  const [tab, setTab] = reactExports.useState("config");
+  const [data, setData] = reactExports.useState(null);
+  const [loading, setLoading] = reactExports.useState(false);
+  const [busyId, setBusyId] = reactExports.useState(null);
+  const [query2, setQuery2] = reactExports.useState("");
+  const [openMap, setOpenMap] = reactExports.useState({});
+  const load = async () => {
+    setLoading(true);
+    try {
+      setData(await call(() => bridge().plugins.list()));
+    } catch (err) {
+      useToastStore.getState().error(pt.loadFailed, err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+  reactExports.useEffect(() => {
+    void load();
+  }, []);
+  const toggle = async (p, on) => {
+    setBusyId(p.id);
+    try {
+      setData(await call(() => bridge().plugins.setEnabled({ id: p.id, enabled: on })));
+    } catch (err) {
+      useToastStore.getState().error(pt.toggleFailed, err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+  const openDir = async (id) => {
+    try {
+      await call(() => bridge().plugins.openDir(id ? { id } : void 0));
+    } catch (err) {
+      useToastStore.getState().error(pt.openPluginDir, err instanceof Error ? err.message : String(err));
+    }
+  };
+  const plugins = data?.plugins ?? [];
+  const q = query2.trim().toLowerCase();
+  const filtered = q ? plugins.filter((p) => `${p.name} ${p.id} ${p.description}`.toLowerCase().includes(q)) : plugins;
+  const emptyNode = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded-xl border border-dashed border-border bg-surface-2/50 px-4 py-6 text-center", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs font-medium text-text-muted", children: pt.empty }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mx-auto mt-1.5 max-w-[420px] text-[11px] leading-relaxed text-text-faint", children: pt.emptyHint })
+  ] });
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-3", children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-start justify-between gap-2", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[11.5px] leading-relaxed text-text-faint", children: pt.subtitle }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex shrink-0 gap-1.5", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { size: "sm", variant: "ghost", icon: /* @__PURE__ */ jsxRuntimeExports.jsx(FolderOpen, { className: "h-3.5 w-3.5" }), onClick: () => void openDir(), children: pt.openDir }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { size: "sm", variant: "secondary", loading, icon: loading ? null : /* @__PURE__ */ jsxRuntimeExports.jsx(LoaderCircle, { className: "h-3.5 w-3.5" }), onClick: () => void load(), children: pt.refresh })
+      ] })
+    ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex gap-4 border-b border-border text-[12.5px]", children: [
+      { k: "config", l: pt.configTab },
+      { k: "list", l: pt.listTab }
+    ].map((tab2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "button",
+      {
+        onClick: () => setTab(tab2.k),
+        className: cn$1("-mb-px border-b pb-1.5 transition-colors", tab === tab2.k ? "border-accent font-medium text-text" : "border-transparent text-text-faint hover:text-text-muted"),
+        children: tab2.l
+      },
+      tab2.k
+    )) }),
+    tab === "list" && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx(Search, { className: "pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-faint" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("input", { value: query2, onChange: (e) => setQuery2(e.target.value), placeholder: pt.search, className: "h-8 w-full rounded-lg border border-border bg-surface-2 pl-8 pr-2 text-xs text-text placeholder:text-text-faint focus:border-accent/50 focus:outline-none" })
+    ] }),
+    tab === "list" ? (
+      plugins.length === 0 && !loading ? emptyNode : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "grid grid-cols-2 gap-2", children: filtered.map((p) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: cn$1("flex flex-col gap-2 rounded-xl border bg-surface-2 p-2.5", p.error ? "border-danger/40" : "border-border"),
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "min-w-0 flex-1 truncate text-[12.5px] font-medium text-text", children: p.name }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("button", { title: pt.openPluginDir, onClick: () => void openDir(p.id), className: "flex h-6 w-6 shrink-0 items-center justify-center rounded text-text-faint hover:bg-hover hover:text-text", children: /* @__PURE__ */ jsxRuntimeExports.jsx(FolderOpen, { className: "h-3.5 w-3.5" }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Toggle, { checked: p.enabled, disabled: !!p.error || busyId === p.id, onChange: (v2) => void toggle(p, v2) })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(PluginKindBadge, { kind: p.kind }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { tone: p.error ? "danger" : p.enabled ? "success" : "neutral", children: p.error ? pt.invalid : p.enabled ? pt.enabled : pt.disabled }),
+              p.version && /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10px] text-text-faint", children: `v${p.version}` })
+            ] }),
+            p.error ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "select-text break-all text-[10.5px] leading-relaxed text-danger", children: p.error }) : p.description ? /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "select-text text-[11px] leading-relaxed text-text-faint", children: p.description }) : null
+          ]
+        },
+        p.id
+      )) })
+    ) : (
+      plugins.length === 0 && !loading ? emptyNode : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex flex-col gap-2", children: plugins.map((p) => {
+        const open = !!openMap[p.id];
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: cn$1("overflow-hidden rounded-xl border bg-surface-2", p.error ? "border-danger/40" : "border-border"), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { type: "button", onClick: () => setOpenMap((m) => ({ ...m, [p.id]: !open })), className: "flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-hover", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(ChevronRight, { className: "cc-chev h-3.5 w-3.5 shrink-0 text-text-faint", style: open ? { transform: "rotate(90deg)" } : void 0 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "min-w-0 flex-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block truncate text-[12.5px] font-medium text-text", children: p.name }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "block truncate text-[11px] text-text-faint", children: p.error ? `${pt.invalid}：${p.error}` : p.description || p.id })
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(PluginKindBadge, { kind: p.kind })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: cn$1("cc-collap", !open && "is-closed"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "cc-collap-in", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-col gap-2.5 border-t border-border/70 px-3 py-2.5", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("dl", { className: "grid grid-cols-[64px_1fr] gap-x-2 gap-y-1 text-[11px]", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-text-faint", children: pt.id }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "select-text break-all font-mono text-text-muted", children: p.id }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-text-faint", children: pt.version }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "font-mono text-text-muted", children: p.version || "—" }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-text-faint", children: pt.kindLabel }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "text-text-muted", children: p.kind === "mcp" ? pt.kindMcp : p.kind === "hooks" ? pt.kindHooks : pt.kindHybrid }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dt", { className: "text-text-faint", children: pt.dir }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("dd", { className: "select-text break-all font-mono text-text-muted", children: p.dir })
+            ] }),
+            p.mcpServers.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10.5px] text-text-faint", children: pt.mcpServers }),
+              p.mcpServers.map((n2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { tone: "neutral", children: n2 }, n2))
+            ] }),
+            p.hookEvents.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex flex-wrap items-center gap-1", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[10.5px] text-text-faint", children: pt.hookEvents }),
+              p.hookEvents.map((n2) => /* @__PURE__ */ jsxRuntimeExports.jsx(Badge, { tone: "neutral", children: n2 }, n2))
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-2", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Button, { size: "sm", variant: "ghost", icon: /* @__PURE__ */ jsxRuntimeExports.jsx(FolderOpen, { className: "h-3.5 w-3.5" }), onClick: () => void openDir(p.id), children: pt.openPluginDir }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("label", { className: "ml-auto flex cursor-pointer items-center gap-1.5 text-[11px] text-text-muted", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(Toggle, { checked: p.enabled, disabled: !!p.error || busyId === p.id, onChange: (v2) => void toggle(p, v2) }),
+                p.enabled ? pt.enabled : pt.disabled
+              ] })
+            ] })
+          ] }) }) })
+        ] }, p.id);
+      }) })
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[10.5px] text-text-faint", children: pt.takeEffect })
+  ] });
 }
 function SettingsPage() {
   const [active, setActive] = reactExports.useState("engine");
