@@ -5,6 +5,14 @@
 
 ## 2026-09-26
 
+### 插件目录迁移到安装盘（D 盘），不再写入 C 盘用户目录
+- 成员：`out/main/index.js`
+  - 改前 sha256：`13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44`（112982 B）
+  - 改后 sha256：`f65fcee7c1b520c801940422bd00ecdbab6a21f6dcce389288ee473325305b27`（113157 B）
+- 摘要：PluginService 目录由 `%APPDATA%/CC Desktop/plugins` + `plugins.json` 改为 `dirname(app.getPath("exe"))/plugins`（即 `d:\CC Desktop\plugins`）+ `plugins-state.json`；动态从 exe 路径推导，不硬编码盘符；升级只覆盖 resources，插件目录保留；ClaudeBackend 改为 new PluginService()；C 盘旧空目录已删除（无用户数据，未生成过 state）；已预建 d:\CC Desktop\plugins
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后线上成员确认含 pluginRootDir ✓
+- 整包 sha256：`3438758458f6f1f141f40ac6897c9085e4d893ad4ad95b540099adc53fd5a554`
+
 ### 插件框架 v1（对标 DSH：MCP Server + Claude Code hooks 脚本）
 - 成员（链式三成员）：
   - `out/main/index.js`：104880 B `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` → 112982 B `13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44`
@@ -216,8 +224,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「插件框架 v1（对标 DSH：MCP Server + Claude Code hooks 脚本）」） | `8221c596bd4ec69b1584d4e1f7b5e7a225450b9b2fc1c1d6bcee732209776251` |
-| └ out/main/index.js（112982 B） | `13968dc0eb733da1bea3dea547b551e426322fd66eb1d2eb569319c8205cbf44` |
+| **当前线上包**（截至 2026-09-26「插件目录迁移到安装盘（D 盘），不再写入 C 盘用户目录」） | `3438758458f6f1f141f40ac6897c9085e4d893ad4ad95b540099adc53fd5a554` |
+| └ out/main/index.js（113157 B） | `f65fcee7c1b520c801940422bd00ecdbab6a21f6dcce389288ee473325305b27` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3080112 B） | `1c0a40d5994837d0a059ef5f00ea5fe14feba3f03d8be144decb9e426ebd092f` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 

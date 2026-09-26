@@ -619,18 +619,22 @@ async function buildFileChanges(toolName, input) {
  * 插件服务（对标 DSH 插件体系，v1 支持两种形态）：
  *  - MCP Server：manifest.mcp 映射，合并进 SDK options.mcpServers（CLI --mcp-config）
  *  - Hooks 脚本：manifest.hooks（Claude settings hooks 结构），合并进 SDK options.settings（CLI --settings）
- * 目录：%APPDATA%/CC Desktop/plugins/<插件文件夹>/plugin.json
- * 状态：%APPDATA%/CC Desktop/plugins.json，新插件默认停用，需用户显式启用
+ * 目录：<安装目录>/plugins/<插件文件夹>/plugin.json（与 CC Desktop.exe 同级，升级只覆盖 resources，插件不受影响；不写入 C 盘用户目录）
+ * 状态：<安装目录>/plugins-state.json，新插件默认停用，需用户显式启用
  * manifest 中可用 ${PLUGIN_DIR} 占位符，替换为插件目录绝对路径
  */
 const PLUGIN_ID_RE = /^[@a-zA-Z0-9._-]{1,120}$/;
+function pluginRootDir() {
+  return dirname(app.getPath("exe"));
+}
 function pluginSubst(value, base) {
   return typeof value === "string" ? value.split("${PLUGIN_DIR}").join(base) : value;
 }
 class PluginService {
-  constructor(userDataDir) {
-    this.dir = join(userDataDir, "plugins");
-    this.file = join(userDataDir, "plugins.json");
+  constructor() {
+    const root = pluginRootDir();
+    this.dir = join(root, "plugins");
+    this.file = join(root, "plugins-state.json");
   }
   loadState() {
     try {
@@ -769,7 +773,7 @@ class ClaudeBackend extends EventEmitter {
     super();
     this.userDataDir = userDataDir;
     this.dir = join(userDataDir, "claude-backend");
-    this.plugins = new PluginService(userDataDir);
+    this.plugins = new PluginService();
   }
   userDataDir;
   id = "claude";
