@@ -6,6 +6,10 @@
 # 临时工作区（在安装目录下，不属于 skill）
 _asar_work/
 
+# 改后成员快照：属第三方闭源代码的衍生物，**不进公开仓库**
+# 实际存放位置：D:\CC Desktop\_asar_snapshots（独立私有 git 仓库）
+snapshots/
+
 # 系统/编辑器
 .DS_Store
 Thumbs.db

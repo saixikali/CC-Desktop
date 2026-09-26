@@ -5,6 +5,14 @@
 
 ## 2026-09-27
 
+### 仓库策略：快照迁出公开仓库 + README/LICENSE 补齐（非 app.asar 补丁）
+- **背景**：`snapshots/` 存的是第三方**闭源**应用的改后成员，放进公开仓库等于公开分发他人代码；且这些文件已随 8 个提交进入历史（其中 5 个已推到 `origin/master`）。
+- **操作**：快照整体迁到仓库外的独立私有 git 仓库 `D:\CC Desktop\_asar_snapshots\`（按 asar 内相对路径，含自带 README 与 `* -text` 的 `.gitattributes`，防止行尾被规范化导致哈希失真）；公开仓库 `git rm` 掉 `snapshots/` 并在 `.gitignore` 中固定排除。
+- **保真校验**：用 `git cat-file blob` 取出两处已提交内容逐字节比对，私有库当前提交与 `origin/master` 历史中的 3 个成员 sha256 均与台账锚点块一致（`b253e542…` / `bc227d46…` / `e2f566fb…`），确认没有 CRLF 污染。
+- **门面**：新增 `README.md`（定位 / 真实改动清单 / 成员级热补丁原理 / 五道验证闸门 / asar 陷阱 / 快速开始 / 台账与快照 / 已知限制 / 免责声明 / English TL;DR）与 `LICENSE`（MIT + NOTICE）；`SKILL.md` 第 7 步与串行约定中的快照路径同步改为仓库外路径。
+- **未决**：历史提交中的快照仍需改写历史 `filter-branch` + 强推才能彻底清除（需人工决定，未执行）。
+- 整包 sha256：`e3852971f6e28bf8dbfe0c3f1702dec4d6b39e24663752a4c11bc21196f54ad0`（本次未打应用补丁）
+
 ### 回退：分组头「⋯」恢复悬停显示（用户决定不保留常显）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`6f9f2e57cb6a0cd2bae063f7e4e4101a9a79cf9474a0cca632e76a1bb03afc9e`（3080064 B）

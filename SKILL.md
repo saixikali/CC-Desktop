@@ -33,7 +33,7 @@ description: 在没有源码的情况下热补丁已安装 Electron 应用 app.a
 | `patch-asar.mjs` | 单成员精确替换，自动处理空文件/dedup/integrity |
 | `verify-asar.mjs` | 四重校验：清单一致、仅目标差异、元数据未变、integrity 全吻合（差异成员 0=幂等重写 / 1=目标改动 都算通过） |
 | `check-ledger.mjs` | **台账自检**：`CHANGELOG.md` 锚点块记的整包/成员哈希 vs 磁盘上真实 asar |
-| `sync-ledger.mjs` | **一键对齐**：更新锚点块 + 刷新 `snapshots/<应用>/`，幂等（每打一个补丁后跑一次） |
+| `sync-ledger.mjs` | **一键对齐**：更新锚点块 + 刷新快照库（仓库外），幂等（每打一个补丁后跑一次） |
 | `smoke-test.mjs` | **行为层冒烟**：以 `CC_SELFTEST=1` 实跑应用，断言安全与桥接不变量 |
 | `test-roundtrip.mjs` | 往返回归测试（幂等布局、真实改动、空文件拒绝 + 基线数字）；退出码 0=通过 / 1=断言失败 / 2=环境不支持 |
 
@@ -107,10 +107,12 @@ node "<skill>\scripts\smoke-test.mjs" --log "<已捕获日志>"  # 离线判定�
 - **一键对齐**（推荐，替代手工改锚点块和手工抽快照）：
 
 ```powershell
-node "<skill>\scripts\sync-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar" "<skill>\snapshots\<应用名>"
+node "<skill>\scripts\sync-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar" "D:\CC Desktop\_asar_snapshots\<应用名>"
 ```
 
 它会把「当前线上包」块的整包哈希与成员哈希/字节数按磁盘真实 asar 重写，并把改后成员写进快照目录；幂等，可重复执行，里程碑锚点块不动。**哈希不能还原代码**：只记台账而不存改后文件，等于把二十多个补丁的成果押在一块硬盘上。
+
+- **快照目录在仓库外**（`D:\CC Desktop\_asar_snapshots`，独立的私有 git 仓库）。原因：快照是第三方**闭源**应用代码的衍生物，放进公开仓库等于公开分发他人代码。`.gitignore` 里的 `snapshots/` 就是为了防止它被误提交回来。该库用 `* -text` 声明二进制属性，避免行尾被 git 规范化后哈希对不上台账。
 - **提交前自检**（必须 exit 0）：
 
 ```powershell
@@ -172,7 +174,7 @@ node "<skill>\scripts\check-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\r
 2. 一个补丁的完整收尾是下面三条，**跑完并提交后才算交棒**：
 
 ```powershell
-node "<skill>\scripts\sync-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar" "<skill>\snapshots\<应用名>"
+node "<skill>\scripts\sync-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar" "D:\CC Desktop\_asar_snapshots\<应用名>"
 node "<skill>\scripts\check-ledger.mjs" "<skill>\CHANGELOG.md" "<安装目录>\resources\app.asar"   # 必须 exit 0
 git -C "<skill>" add -A; git -C "<skill>" commit -m "patch: <摘要>"
 ```

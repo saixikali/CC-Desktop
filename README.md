@@ -12,7 +12,7 @@
 
 </div>
 
-> **这是什么**：一套自研的 **asar 成员级补丁工具链**（9 个零依赖 Node 脚本），外加一个真实项目的**补丁台账**与**改后成员快照**。本机装的闭源 Electron 客户端没有源码仓库，却需要几十次界面与功能改动 —— 这个仓库就是那件事的全部工程化沉淀。
+> **这是什么**：一套自研的 **asar 成员级补丁工具链**（9 个零依赖 Node 脚本），外加一个真实项目的**补丁台账**。（改后成员快照另存于**仓库外**的私有库，原因见[台账与快照](#台账与快照让-40-多次补丁可审计)。）本机装的闭源 Electron 客户端没有源码仓库，却需要几十次界面与功能改动 —— 这个仓库就是那件事的工程化沉淀。
 >
 > **这不是什么**：不是 CC Desktop 的分发，不含应用本体、安装包或原始 `app.asar`。详见文末[免责声明](#免责声明)。
 
@@ -144,7 +144,12 @@ app.asar ──► 读出目标成员 ──► 最小改动（压缩单行代�
 
 这条规则由 `check-ledger.mjs` 强制执行。它不是装饰：2026-09-26 曾连续 6 个补丁只写了条目、忘了更新锚点块，正是这个脚本亮红才发现的。
 
-**`snapshots/`** 存的是从线上包里抽出的**改后成员**（按 asar 内相对路径）。原因很直白：**哈希不能还原代码** —— 如果只有台账而不存改后文件，20 多个补丁的成果就只剩下一个 52 MB 的二进制和一堆摘要。
+**改后成员快照存在仓库之外**：`D:\CC Desktop\_asar_snapshots` —— 一个独立的私有 git 仓库，按 asar 内相对路径存放。两层原因：
+
+- **哈希不能还原代码**：只记台账而不存改后文件，40 多次补丁的成果就只剩下一个 52 MB 的二进制和一堆摘要；
+- 但快照是**第三方闭源应用代码的衍生物**，放进公开仓库等于公开分发他人代码。所以它被刻意留在仓库外（`.gitignore` 里的 `snapshots/` 用于防止误提交回来），并用 `* -text` 声明二进制属性，避免 git 的行尾规范化把哈希改坏。
+
+快照与台账的一致性同样可验证：从快照库取出任一成员，其 sha256 应与 `CHANGELOG.md` 锚点块记录的值逐字节一致（本项目已实测一致）。
 
 当前线上状态（由 `check-ledger.mjs` 实时校验）：
 
@@ -187,7 +192,7 @@ Start-Process "<安装目录>\<应用>.exe"
 
 # 6. 行为层冒烟 + 记账 + 快照 + 台账自检
 node "$skill\scripts\smoke-test.mjs" "<安装目录>"
-node "$skill\scripts\sync-ledger.mjs" "$skill\CHANGELOG.md" $asar "$skill\snapshots\<应用名>"
+node "$skill\scripts\sync-ledger.mjs" "$skill\CHANGELOG.md" $asar "D:\CC Desktop\_asar_snapshots\<应用名>"
 node "$skill\scripts\check-ledger.mjs" "$skill\CHANGELOG.md" $asar   # 必须 exit 0
 ```
 
@@ -212,13 +217,15 @@ node "$skill\scripts\test-roundtrip.mjs" $asar
 ## 目录结构
 
 ```text
-electron-asar-patch/
+electron-asar-patch/                 # ← 本仓库（公开）：只有自有内容
 ├─ README.md                  # 你正在看的这份
 ├─ SKILL.md                   # 面向 agent 的操作手册：何时用/不用、陷阱、标准流程、串行作业约定
 ├─ CHANGELOG.md               # 补丁台账：每条成员级改前/改后哈希 + 文末锚点哈希块
 ├─ LICENSE                    # MIT（仅覆盖本仓库自有代码）
-├─ scripts/                   # 9 个零依赖 Node 脚本（工具链本体）
-└─ snapshots/<应用名>/        # 改后成员快照（按 asar 内相对路径），用于回滚与重建
+└─ scripts/                   # 9 个零依赖 Node 脚本（工具链本体）
+
+D:\CC Desktop\_asar_snapshots\        # ← 仓库外（私有）：快照不放公开仓库
+└─ cc-desktop/out/...         # 改后成员快照（按 asar 内相对路径），用于回滚与重建
 ```
 
 ## 已知限制与路线图
@@ -235,12 +242,14 @@ electron-asar-patch/
 - [ ] 把业务行为断言接进 `smoke-test.mjs`（往自检探针里加渲染层断言）
 - [ ] 为补丁产物增加"补丁文件 diff 友好化"记录（当前依赖快照全量文件）
 - [x] 台账自检 + 一键对齐 + 行为层冒烟 + 快照入库（2026-09-26 完成）
+- [x] 快照迁出公开仓库，改为仓库外的独立私有库（2026-09-27 完成）
 
 ## 免责声明
 
 - 本仓库**不是 CC Desktop 的分发**，不包含应用本体、安装包、原始 `app.asar`，也不提供任何绕过授权或破解手段。所有补丁作用于**本机已安装**的应用，用于个人使用与学习。
-- 本仓库自带代码（`scripts/`、文档、台账）采用 MIT 许可；但 `snapshots/` 与 `CHANGELOG.md` 中被引用的**改后成员是原应用代码的衍生物**，其版权归原作者所有，**不适用本仓库的 MIT 许可**，仅作为本机回滚/重建的备份存在。
-- 与原应用作者无任何关联。若原作者对 `snapshots/` 的存放有异议，提 issue 即删。
+- 本仓库自带代码（`scripts/`、文档、台账）采用 MIT 许可。**仓库中不含**任何应用本体、安装包、原始 `app.asar`，也不含改后成员快照 —— 快照（第三方代码的衍生物）刻意存放在**仓库之外**的私有库中，其版权归原应用作者所有，不适用本仓库的 MIT 许可。
+- 说明：本仓库早期提交中曾包含过快照文件，现已移除并加入 `.gitignore`；历史提交的内容不构成任何授权。
+- 与原应用作者无任何关联。若原作者对相关内容有异议，提 issue 即删。
 - 请自行确认在所在地区对已安装软件做本地修改的合规性。
 
 ## License
@@ -252,10 +261,10 @@ electron-asar-patch/
 <details>
 <summary><b>English TL;DR</b></summary>
 
-A zero-dependency toolkit that hot-patches a **closed-source Electron desktop app** at the *asar member* level, plus the hash-anchored patch ledger and post-patch snapshots of a real project (40+ patches).
+A zero-dependency toolkit that hot-patches a **closed-source Electron desktop app** at the *asar member* level, plus the hash-anchored patch ledger of a real project (40+ patches). Post-patch snapshots live in a **separate private store outside this repo**, because they are derivatives of the app's closed-source code.
 
 Because there is no source and no build, correctness is enforced by five gates: syntax check → 4-way package verification (member list identical, non-target members byte-identical, unpacked metadata untouched, all 7897 members' integrity recomputed and verified) → round-trip regression (idempotent rewrite is byte-identical to the original 52 MB package) → **behavioral smoke test** (launches the app in its built-in self-test mode with an isolated userData dir and asserts security invariants) → ledger consistency check.
 
-This is not a redistribution of the app: no app binaries, no original `app.asar`. Copyright of the patched members in `snapshots/` remains with the original authors.
+This is not a redistribution of the app: no app binaries, no original `app.asar`. Copyright of the patched members (kept outside this repo) remains with the original authors.
 
 </details>
