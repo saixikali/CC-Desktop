@@ -5,6 +5,19 @@
 
 ## 2026-09-27
 
+### 回退：分组头「⋯」恢复悬停显示（用户决定不保留常显）
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`6f9f2e57cb6a0cd2bae063f7e4e4101a9a79cf9474a0cca632e76a1bb03afc9e`（3080064 B）
+  - 改后 sha256：`bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02`（3080088 B，即回到上一补丁状态）
+- 摘要：GroupHeader 触发按钮恢复 `hidden … group-hover:flex`；会话行常显保留。整包 sha256 回到 `e3852971…`，与「会话行常显」补丁后的包逐字节一致，确认干净回退
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 全绿 ✓；CDP 实测分组头未悬停 display=none、会话行仍 flex ✓
+
+### 数据修复（非 app.asar 补丁）：projects.json 补 Real gal 工作区记录
+- 文件：`d:\CC Desktop\data\projects.json`（备份：同目录 `projects.json.addrealgal.bak`）
+- 现象：Real gal 分组头无「⋯」按钮——渲染条件是 `project &&`，而 projects.json 缺该工作区记录（会话分组按 cwd 匹配项目 roots）
+- 操作：停服 → 备份 → 追加 `{id: 新UUID, name: "Real gal", roots: ["D:\\Agent\\Real gal"]}` → JSON 校验 → 重启
+- 验证：4 个工作区记录齐全；CDP 实测 Real gal 分组头的「⋯」按钮已渲染（悬停显示，符合回退后样式）；侧栏分组与会话列表无变化
+
 ### 侧栏分组头「⋯」操作按钮常显（同上一补丁对会话行的处理）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02`（3080088 B）
@@ -261,9 +274,9 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「侧栏分组头「⋯」操作按钮常显（同上一补丁对会话行的处理）」） | `add49cbfda8ba57633d9e8c977faa786719ee91aad83bcb5d34daf9d862108f6` |
+| **当前线上包**（截至 2026-09-26「回退：分组头「⋯」恢复悬停显示（用户决定不保留常显）」） | `e3852971f6e28bf8dbfe0c3f1702dec4d6b39e24663752a4c11bc21196f54ad0` |
 | └ out/main/index.js（114820 B） | `b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5` |
-| └ out/renderer/assets/index-CnGZ3Eox.js（3080064 B） | `6f9f2e57cb6a0cd2bae063f7e4e4101a9a79cf9474a0cca632e76a1bb03afc9e` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式
