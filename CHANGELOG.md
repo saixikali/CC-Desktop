@@ -5,6 +5,14 @@
 
 ## 2026-09-26
 
+### 工具链：一键对齐 + 回归脚本环境自适应（本目录，非 app.asar 成员；未打应用补丁）
+- **新增 `sync-ledger.mjs`**：一条命令把「当前线上包」锚点块与磁盘真实 asar 对齐（整包 sha256 + 块内每个成员的哈希/字节数），并把改后成员刷新进 `snapshots/<应用>/`。里程碑锚点块不动；标签自动取最新补丁条目标题（跳过"工具链/工程化"这类非补丁小节）。**以后每个补丁部署后跑一次，就不会再出现"记了条目忘了锚点"的漂移。**
+- **`test-roundtrip.mjs` 增环境探针**：受限沙箱（禁止 piped stdio）下 `spawnSync` 会 EPERM，现在以**退出码 2**明确报告"环境不支持"，与"断言失败(1)"区分开——此前这一条曾被误读成回归，并把上一轮的假绿修复回退掉了（本次已取回）。
+- **对齐本次漂移**：04:35~10:51 的 6 个补丁只写了条目、未更新锚点块，`check-ledger` 亮红（台账 `29edbdc8` / 实测 `3ed93e2a`）。已用 `sync-ledger` 对齐，并刷新快照（renderer `bfc7b066` → `4cda7c79`，3067574 B）。
+- **清理**：删除 `_asar_work\app.p7~p9.asar` 三个 0 字节占位包；`app.p10~p12.asar` 被 Trae 进程占用句柄删不掉（`正由另一进程使用`），需在 Trae 退出后补删。
+- 验证：`check-ledger` exit 0（整包 + 3 成员全对齐）；`sync-ledger` 幂等（重复执行成员行显示 `= 未变`）。
+- 整包 sha256：`3ed93e2a01e756918e50c5ab624e5653a8a038db4d770ac030ebf600442e425c`
+
 ### 整行点击展开/折叠（分组名、文件更改汇总卡）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`6f270ac9c77481f48ceed17436b74328bced443dd3a3b71c9b7d65b88b08e45e`（3067485 B）
@@ -194,9 +202,9 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-26「权限菜单恢复紧凑尺寸」） | `29edbdc892d694c93a430ee662abf59f1d1f387c8656498b3b2af8fb71a4697b` |
+| **当前线上包**（截至 2026-09-26「整行点击展开/折叠（分组名、文件更改汇总卡）」） | `3ed93e2a01e756918e50c5ab624e5653a8a038db4d770ac030ebf600442e425c` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
-| └ out/renderer/assets/index-CnGZ3Eox.js（3062287 B） | `bfc7b066df6fe2346f870bfa712d8466b368714a7dce0c6e92691c59e702abbf` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3067574 B） | `4cda7c79d9a8a4f5d23f56e84c0d5f3d6e1a6e3f62be66a80e7b6926228d1277` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式
