@@ -5,6 +5,16 @@
 
 ## 2026-09-26
 
+### 连续工具卡收拢为「N 项操作」折叠堆叠
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`22ade0e577651606b0e7f3e4ad0e93f0d0ef5383fac480408a2e37d010398cae`（3064384 B）
+  - 改后 sha256：`6f270ac9c77481f48ceed17436b74328bced443dd3a3b71c9b7d65b88b08e45e`（3067485 B）
+- 摘要：
+  - TurnGroup 把渲染列表抽成 itemNodes（useMemo）：连续 action（非 userMessage/agentMessage）按 run 聚合，>=2 条收拢为 ActionStack
+  - 新增 ActionStack 组件：头部「▸ N 项操作」默认折叠（useState(false)），点击展开明细，复用 cc-collap 折叠动画；落单 1 条不折叠；user/text 不参与
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 基线 7897/2/0 全绿 ✓；部署后抽出线上成员确认含 ActionStack ✓
+- 整包 sha256：`a403d84a7cbe3ade1d7fde4fef3b3fd19c98f64a34ee59c1f577323899f80a8a`
+
 ### 修复「+」悬停气泡无文字（i18n key 命名空间笔误）
 - 成员：`out/renderer/assets/index-CnGZ3Eox.js`
   - 改前 sha256：`8534b653ee97beee16b298e46b55310bed738e07b505d0e8d3d1525f42674cd6`（3064385 B）
