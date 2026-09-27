@@ -1,9 +1,7 @@
 @import "tailwindcss";
 
 /*
- * CC Desktop 设计 token（视觉语言贴近 DSH Desktop：
- * 浅色为默认主题，html.dark 切换深色；两套均为中性底 + 克制的强调色）。
- * 用 @theme inline 让工具类引用原始变量 --c-*，从而支持运行时换肤。
+ * Shared runtime color tokens for light and dark themes.
  */
 @theme inline {
   --color-bg: var(--c-bg);
@@ -38,10 +36,7 @@
     "Liberation Mono", Menlo, Courier, monospace;
 }
 
-/*
- * 浅色（默认）— 对齐 DSH Desktop 设计系统 light aliases：
- * 底 #fff、侧栏 neutral-bluish-50、主文字 #0f1115、业务蓝 deepseek-500。
- */
+/* Light theme aliases. */
 :root {
   --c-bg: #ffffff;
   --c-surface: #f9fafb;
@@ -62,7 +57,7 @@
   --c-shadow: rgba(15, 17, 21, 0.08);
 }
 
-/* 深色 — 对齐 DSH neutral-bluish 暗色阶（侧栏 900、底 950、面板 875）。 */
+/* Dark theme aliases. */
 html.dark {
   --c-bg: #151517;
   --c-surface: #1b1b1c;

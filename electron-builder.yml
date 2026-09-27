@@ -1,32 +1,26 @@
-# electron-builder 配置：CC Desktop（NSIS x64，内置 Claude Code 引擎）
 appId: com.cc.desktop
 productName: CC Desktop
-copyright: Copyright © 2026 CC Desktop
+copyright: Copyright (c) 2026 CC Desktop contributors
 
 directories:
   output: dist
   buildResources: build
 
-# 仅打包 electron-vite 产物与 package.json；生产依赖由 builder 自动收集
 files:
   - out/**/*
   - package.json
 
-# node-pty 原生模块（.node/.dll/OpenConsole.exe）必须在 asar 外按原目录结构加载
 asar: true
 asarUnpack:
   - "**/node_modules/node-pty/**"
-  # Claude Code 引擎：Agent SDK 平台原生包内含 claude.exe，必须落在 asar 外才能 spawn
   - "**/node_modules/@anthropic-ai/**"
 
-# 托盘/通知/窗口图标：与 main 进程 resourcePath() 对应（process.resourcesPath 根）
 extraResources:
   - from: resources
     to: .
     filter:
       - "*.png"
 
-# 使用 node-pty 自带 prebuilds，无需安装期 node-gyp 重编译
 npmRebuild: false
 
 win:
@@ -51,9 +45,3 @@ protocols:
   - name: CC Desktop
     schemes:
       - cc-desktop
-
-# generic feed：latest.yml 与安装包一起产出在 dist/；
-# 运行时实际使用的更新源由用户设置（updateFeedUrl）在应用内配置
-publish:
-  - provider: generic
-    url: https://cc-desktop.invalid/updates/

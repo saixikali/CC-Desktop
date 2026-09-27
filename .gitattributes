@@ -1,7 +1,7 @@
-# 文本文件统一按 LF 入库，避免 Windows 提交把整个仓库变成 CRLF 噪音
+# Normalize text files to LF in the repository.
 * text=auto eol=lf
 
-# 二进制资源：禁止任何换行符转换
+# Keep binary resources untouched.
 *.ico binary
 *.png binary
 *.exe binary
@@ -9,6 +9,6 @@
 *.node binary
 *.asar binary
 
-# 语言统计：构建产物与锁文件不计入
 package-lock.json linguist-generated=true
 out/** linguist-generated=true
+dist/** linguist-generated=true

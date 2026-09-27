@@ -103,7 +103,7 @@ const s = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /**
  * 单条命令输出的保留上限（字符数，约 256KB，与内置终端环形缓冲同一量级）。
- * 超出时只保留尾部，避免万行输出无限拼接撑爆内存与 DOM（AC-16）。
+ * 超出时只保留尾部，避免万行输出无限拼接撑爆内存与 DOM。
  */
 const MAX_COMMAND_OUTPUT = 256 * 1024;
 const TRUNC_MARKER = "…（前序输出已截断，仅保留最近内容）…\n";

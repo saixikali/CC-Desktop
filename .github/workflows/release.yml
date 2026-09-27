@@ -1,6 +1,5 @@
 name: Release
 
-# 打 v* 标签时自动构建 NSIS 安装包并创建 GitHub Release
 on:
   push:
     tags:
@@ -10,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-windows:
+  release:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,22 +19,19 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: 安装依赖
+      - name: Install dependencies
         run: npm ci
 
-      - name: 类型检查
-        run: npm run typecheck
+      - name: Verify source
+        run: npm run verify
 
-      - name: 构建安装包
-        # electron-builder.yml 里的 publish 是 generic 占位地址，
-        # 这里显式 --publish never，改由下一步上传到 GitHub Release。
-        run: npx electron-builder --win --x64 --publish never
-
-      - name: 创建 Release 并上传安装包
+      - name: Create source release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/*-setup.exe
-            dist/*-setup.exe.blockmap
-            dist/latest.yml
+          body: |
+            This release contains source code only.
+
+            CC Desktop is an unofficial project and is not affiliated with Anthropic.
+            Prebuilt installers are not attached because bundled third-party runtimes
+            require separate redistribution review.
           generate_release_notes: true

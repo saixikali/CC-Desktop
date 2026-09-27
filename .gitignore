@@ -1,18 +1,19 @@
 node_modules/
 out/
 dist/
+coverage/
 *.log
+*.exe
+*.zip
+*.7z
 .DS_Store
 .env
 .env.*
 
-# Trae 规格/评审记录与回归证据
-.trae/
-
 # TypeScript incremental build info
 *.tsbuildinfo
 
-# Windows 资源管理器 / 编辑器噪声
+# Windows and editor files
 Thumbs.db
 desktop.ini
 .vscode/

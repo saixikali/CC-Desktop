@@ -1,5 +1,5 @@
 /**
- * 当轮模型/推理力度覆盖（AC-8）：
+ * 当轮模型与推理力度覆盖：
  * turn/start 的 model/effort 是"本回合及后续回合"的会话级覆盖，
  * 这里按 threadId 记住选择；尚未创建的会话用 pending 承载，建会后 adoptPending 固化。
  */

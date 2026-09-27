@@ -1,5 +1,5 @@
 /**
- * 单个终端标签的 xterm 实例（Task 14）：
+ * 单个终端标签的 xterm 实例：
  *  - 挂载时接管 store 输出并回放暂存区；卸载时归还给暂存区
  *  - onData → writeStdin；onResize / 容器尺寸变化 → fit + resizePty
  */

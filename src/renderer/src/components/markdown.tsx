@@ -5,7 +5,7 @@ import hljs from "highlight.js";
 import "highlight.js/styles/github-dark.css";
 import { cn } from "../lib/cn.ts";
 
-/** 代码块超过该长度不再做高亮（highlightAuto 对超长文本非常昂贵，AC-16）。 */
+/** 代码块超过该长度不再做高亮，避免高亮器处理超长文本时长时间占用主线程。 */
 const HL_LIMIT = 20_000;
 
 const SAFE_HREF = /^(https?:|mailto:|file:|#)/i;

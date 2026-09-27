@@ -1,9 +1,9 @@
 /**
- * 聊天输入区（DSH Desktop 风格大圆角卡片）：
+ * 聊天输入区：
  *  - Enter 发送 / Shift+Enter 换行（IME 组合中不触发）
  *  - 无会话时以当前工作区根目录自动建会话
- *  - turn/start 支持当轮 model / effort 覆盖（AC-8），选择器并入底部工具条右侧
- *  - 流式进行中可"追加"输入（turn/steer，AC-5）或"停止"（turn/interrupt）
+ *  - turn/start 支持当轮 model / effort 覆盖，选择器并入底部工具条右侧
+ *  - 流式进行中可追加输入（turn/steer）或停止当前回合（turn/interrupt）
  *  - 支持附加本地图片（localImage）
  *  - 底部工具条左侧为全局沙箱模式选择（写 config.toml，对新会话生效）
  */
@@ -308,7 +308,7 @@ export function Composer() {
     }
   };
 
-  /** 流式过程中向当前回合追加指令（turn/steer，AC-5）。 */
+  /** 流式过程中向当前回合追加指令。 */
   const steer = async () => {
     const body = text.trim();
     if (!body || busy || !threadId) return;

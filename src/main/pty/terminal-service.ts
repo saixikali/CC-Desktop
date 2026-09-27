@@ -1,5 +1,5 @@
 /**
- * 内置终端服务（Task 14）：
+ * 内置终端服务：
  *  - 每个标签一个 ConPTY（node-pty），cwd 默认当前工作区根目录
  *  - 默认 shell 探测：pwsh → powershell → cmd（首个存在的可执行文件）
  *  - outputDelta / exited 经推送事件广播给渲染层
