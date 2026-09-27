@@ -5,6 +5,21 @@
 CC Desktop 是一个面向 Windows x64 的本地桌面客户端，使用 Electron、React 和
 Claude Agent SDK 构建。所有会话、工作区和终端操作都在用户本机完成。
 
+## 观众一键安装
+
+如果你是从视频或教程来到本项目，可以按以下步骤在本机安装：
+
+1. 在本仓库点击 `Code -> Download ZIP`，下载并解压源码。
+2. 安装 [Node.js 22.18 或更高版本](https://nodejs.org/en/download)。
+3. 在源码目录中打开 PowerShell，执行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-CCDesktop.ps1
+```
+
+脚本会检查运行环境、下载依赖、在用户本机构建安装包并启动安装程序。安装包没有代码签名，
+Windows SmartScreen 可能显示“未知发布者”提示。
+
 ## 功能
 
 - 多会话管理、搜索、归档、恢复和项目分组。
