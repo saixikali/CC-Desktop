@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:; script-src 'self' 'unsafe-eval'; media-src 'self' data: blob:;" />
+<title>CC Pet</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="stage">
+    <div id="bubble" class="bubble-hidden">
+      <span id="bubble-text"></span>
+    </div>
+    <div id="canvas-wrap"><canvas id="pet-canvas"></canvas></div>
+
+    <button id="gear" title="桌宠设置">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+
+    <!-- 右键简易菜单 -->
+    <div id="ctx-menu" class="hidden">
+      <div class="ctx-item" data-act="settings">设置</div>
+      <div class="ctx-item" data-act="flip">翻转朝向</div>
+      <div class="ctx-item" data-act="hide">隐藏桌宠</div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="panel" class="panel-hidden">
+      <div class="panel-card">
+        <div class="panel-head">
+          <span>桌宠设置</span>
+          <button id="panel-close" class="icon-btn">×</button>
+        </div>
+        <div class="panel-body" id="panel-main">
+          <div class="row">
+            <label>角色</label>
+            <input id="role-name" class="text-box" type="text" readonly />
+            <button id="btn-import" class="btn primary">导入</button>
+          </div>
+
+          <div class="row">
+            <label>大小</label>
+            <input id="size-range" type="range" min="1" max="15" step="1" />
+            <input id="size-num" class="num-box" type="number" min="1" max="15" />
+          </div>
+
+          <div class="row">
+            <label>音效与提示</label>
+            <button id="btn-sound" class="btn wide">全局设置</button>
+          </div>
+          <div id="sub-sound" class="sub hidden">
+            <label class="chk"><input type="checkbox" data-k="sound" /> 音效开关</label>
+            <label class="chk"><input type="checkbox" data-k="evTurn" /> 任务完成气泡与提示音</label>
+            <label class="chk"><input type="checkbox" data-k="evApproval" /> 等待批准气泡与提示音</label>
+            <label class="chk"><input type="checkbox" data-k="idleLines" /> 空闲时随机台词</label>
+            <div class="row sub-row"><label>音量</label><input type="range" min="0" max="100" data-k-r="volume" /></div>
+          </div>
+
+          <div class="row">
+            <label>气泡全局开关</label>
+            <input type="checkbox" class="big-chk" data-k="bubbles" />
+            <button id="btn-bubble" class="btn wide">按压泡泡设置</button>
+          </div>
+          <div id="sub-bubble" class="sub hidden">
+            <label class="chk"><input type="checkbox" data-k="bubbleClickDismiss" /> 点击泡泡即可关闭</label>
+            <div class="row sub-row">
+              <label>显示时长</label>
+              <input type="range" min="2" max="20" data-k-r="bubbleDuration" />
+              <span class="unit" id="bubble-duration-val"></span>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="row">
+            <label>避让滚动条</label>
+            <input type="checkbox" class="big-chk" data-k="avoidScrollbar" />
+            <label class="inline-lbl">宽度</label>
+            <input id="gap-num" class="num-box small" type="number" min="0" max="120" />
+            <span class="unit">px</span>
+          </div>
+
+          <div class="row">
+            <label>吸附与翻转</label>
+            <button id="btn-snap" class="btn wide">自定义</button>
+          </div>
+          <div id="sub-snap" class="sub hidden">
+            <label class="chk"><input type="checkbox" data-k="edgeSnap" /> 拖到屏幕边缘自动吸附</label>
+            <label class="chk"><input type="checkbox" data-k="autoFlip" /> 吸附后自动朝向屏幕内侧</label>
+          </div>
+
+          <div class="row">
+            <label>隐藏菜单按钮</label>
+            <input type="checkbox" class="big-chk" data-k="hideMenu" />
+          </div>
+
+          <div class="row">
+            <label>资源管理</label>
+            <button id="btn-res" class="btn dashed wide">管理</button>
+          </div>
+        </div>
+
+        <div id="panel-res" class="panel-body hidden">
+          <div class="panel-sub-head">
+            <button id="res-back" class="icon-btn">‹</button>
+            <span>资源管理</span>
+            <button id="res-open-dir" class="icon-btn" title="打开模型目录">📁</button>
+          </div>
+          <div id="res-list"></div>
+        </div>
+
+        <div class="panel-foot">- = CC Desktop 桌宠 = -</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="lib/live2dcubismcore.min.js"></script>
+  <script src="lib/pixi.min.js"></script>
+  <script src="lib/cubism4.min.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

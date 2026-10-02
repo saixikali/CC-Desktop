@@ -3,6 +3,27 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-10-02
+
+### 新增：Live2D 桌宠（参考 DSH/小鲸鱼桌宠面板，壳内透明置顶窗）
+- 成员：`out/main/index.js`
+  - 改前 sha256：`b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5`（114820 B）
+  - 改后 sha256：`067e826d34f608da3c48383af2d457456d146a70a01bafc57c48e9c7dfb8966b`（128763 B）
+  - 整包 sha256：`d353c945d513104630572fb93c58555d3aa1a094db4e7fbc2a7c6fad4ac365c0`
+- 架构：
+  - 新增 `PetManager` 类（约 340 行）：透明/无边框/置顶(screen-saver)/skipTaskbar/focusable:false 的独立 `BrowserWindow`，独立 partition `persist:ccpet`（不受主窗 CSP 约束），加载 `<exe目录>/pet/live2d/index.html`；桌宠代码与引擎**全部在 asar 外**，升级模型/改逻辑无需重打包
+  - 渲染：PixiJS 6.5.10 + pixi-live2d-display 0.4.0(cubism4) + Live2D Cubism Core 5.1（CDN 固定版本，脚本 `scripts/fetch-pet-runtime.mjs` 可复现）；模型为官方免费 Hiyori（17 文件，model3.json）
+  - 配置持久化 `<userData>/pet.json`（即 `d:\CC Desktop\data\pet.json`），默认随应用启动
+  - 托盘菜单新增「桌宠」勾选框（TrayService 加 `petItem`/`setPetChecked`）；`pet.onStateChange` 回写勾选态
+  - 会话事件：订阅 `claudeConv` 的 `notification`(turn/completed) 与 `approval`(pending) → 推送给桌宠气泡；WebAudio 合成提示音（无音频素材）
+  - IPC（PetManager 内部 ipcMain 注册，不走 CHANNELS 三表，preload 为外部 `pet/live2d/preload.cjs`）：get-config/set-config/list-models/import-model/delete-model/open-models-dir/drag/hide/set-ignore
+  - 交互：全局拖拽（屏幕坐标）、边缘 48px 吸附 + 5 步滑动动画、自动朝向翻转、大小 1-15（窗高 166-530px）、透明区域点击穿透（forward 转发 + 身体近似命中区）、右键菜单（设置/翻转/隐藏）
+  - 设置面板（窗临时扩到 356×572）对齐参考图：角色+导入、大小滑块、音效与提示全局设置（开关/事件/空闲台词/音量）、气泡全局开关+按压泡泡设置（点击关闭/显示时长）、避让滚动条(px，右侧吸附时另用 PowerShell P/Invoke best-effort 探测前台窗口右缘)、吸附与翻转自定义、隐藏菜单按钮、资源管理（切换/删除/打开目录）
+- 自研 4 源文件已存公开仓库 `pet-live2d/`（index.html 5697 B / styles.css 5313 B / renderer.js 13704 B / preload.cjs 910 B）；线上位于 `d:\CC Desktop\pet\live2d\`
+- **目录共存说明**：`pet/` 根目录原有一套旧版 Python(tkinter) GIF 桌宠（DeepSeek 余额/峰谷泡泡，2026-10-02 12:22 最后运行，未自启）；本次 Live2D 运行时整体放在 `pet/live2d/` 子目录，旧项目文件原样保留、互不干扰。其注入 app.asar 的自启半成品（`.injected-main.js`/`app.asar.patched`）从未部署到 resources。余额/峰谷泡泡计划后续移植到 Live2D（需 DEEPSEEK_API_KEY 入口）
+- 验证：node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 7897/2/0 全绿 ✓；CDP 实测：桌宠窗 `file:///D:/CC%20Desktop/pet/live2d/index.html` 加载 0 报错、Hiyori 全身 fit 渲染背景透明、设置面板 356×572 布局与参考图一致（含全部开关行）、资源管理列出 Hiyori(使用中)、关面板窗复原 251×322、审批气泡显示正常、子目录迁移后复测通过；正常启动 5 进程（含桌宠渲染进程）
+- 已知限制：命中区为身体近似矩形（非逐像素 alpha）；避让滚动条的前台窗口探测为 best-effort（PowerShell ~0.9s 超时即退回屏幕边缘）；仅支持 Cubism 3/4（*.model3.json），Cubism 2 老模型不支持；拖拽/吸附/托盘勾选未做自动化实测（纯窗口管理代码，需人工体感验证）
+
 ## 2026-09-27
 
 ### 仓库策略：快照迁出公开仓库 + README/LICENSE 补齐（非 app.asar 补丁）
@@ -284,8 +305,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-09-27「回退：分组头「⋯」恢复悬停显示（用户决定不保留常显）」） | `e3852971f6e28bf8dbfe0c3f1702dec4d6b39e24663752a4c11bc21196f54ad0` |
-| └ out/main/index.js（114820 B） | `b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5` |
+| **当前线上包**（截至 2026-10-02「新增：Live2D 桌宠（参考 DSH/小鲸鱼桌宠面板，壳内透明置顶窗）」） | `d353c945d513104630572fb93c58555d3aa1a094db4e7fbc2a7c6fad4ac365c0` |
+| └ out/main/index.js（128763 B） | `067e826d34f608da3c48383af2d457456d146a70a01bafc57c48e9c7dfb8966b` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
