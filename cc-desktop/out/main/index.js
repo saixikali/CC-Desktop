@@ -1,5 +1,5 @@
 import { ipcMain, dialog, BrowserWindow, shell, app, nativeImage, Tray, Menu, Notification, session, screen } from "electron";
-import { existsSync, readFileSync, renameSync, mkdirSync, writeFileSync, createWriteStream, readdirSync, statSync, unlinkSync, mkdtempSync, cpSync, rmSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, mkdirSync, writeFileSync, createWriteStream, readdirSync, statSync, unlinkSync, mkdtempSync, cpSync, rmSync, realpathSync, copyFileSync } from "node:fs";
 import { tmpdir, release, homedir } from "node:os";
 import { join, resolve, basename, dirname, relative, parse, isAbsolute, extname } from "node:path";
 import { EventEmitter } from "node:events";
@@ -2742,7 +2742,8 @@ class PetManager {
     this.win.setBounds({ x, y, width: size.w, height: size.h });
     try { this.win.setIgnoreMouseEvents(true, { forward: true }); } catch { /* noop */ }
   }
-  /* ---------- 模型 ---------- */
+  /* ---------- 形象（Live2D *.model3.json 或图片 png/jpg/gif/webp）---------- */
+  static ENTRY_RE = /\.(model3\.json|png|jpe?g|gif|webp)$/i;
   findModelEntries(dir, depth = 0) {
     const out = [];
     if (depth > 4) return out;
@@ -2752,9 +2753,19 @@ class PetManager {
       if (ent.name.startsWith(".") || ent.name === "node_modules") continue;
       const full = join(dir, ent.name);
       if (ent.isDirectory()) out.push(...this.findModelEntries(full, depth + 1));
-      else if (/\.model3\.json$/i.test(ent.name)) out.push(full);
+      else if (PetManager.ENTRY_RE.test(ent.name)) out.push(full);
     }
     return out;
+  }
+  // 一个文件夹 = 一个形象：优先 model3.json（忽略贴图目录里的散 png），否则取首张图片
+  pickEntry(files, base) {
+    const m3 = files.find((f) => /\.model3\.json$/i.test(f));
+    const chosen = m3 || [...files].sort((a, b) => a.localeCompare(b))[0];
+    if (!chosen) return null;
+    return {
+      entry: relative(base, chosen).replace(/\\/g, "/"),
+      kind: /\.model3\.json$/i.test(chosen) ? "live2d" : "image"
+    };
   }
   listModels() {
     const out = [];
@@ -2762,34 +2773,58 @@ class PetManager {
     try { dirs = readdirSync(this.modelsDir, { withFileTypes: true }); } catch { return out; }
     for (const d of dirs) {
       if (!d.isDirectory() || d.name.startsWith(".")) continue;
-      const entries = this.findModelEntries(join(this.modelsDir, d.name));
-      if (entries[0]) {
-        out.push({ id: d.name, entry: relative(join(this.modelsDir, d.name), entries[0]).replace(/\\/g, "/") });
-      }
+      const base = join(this.modelsDir, d.name);
+      const picked = this.pickEntry(this.findModelEntries(base), base);
+      if (picked) out.push({ id: d.name, ...picked });
     }
     return out;
   }
   async importModel() {
     const r = await dialog.showOpenDialog(this.win ?? undefined, {
-      title: "选择 Live2D 模型文件夹（内含 *.model3.json）",
-      properties: ["openDirectory"]
+      title: "选择 Live2D 模型清单（*.model3.json）或图片（PNG/JPG/GIF/WebP）",
+      properties: ["openFile"],
+      filters: [
+        { name: "Live2D / 图片", extensions: ["json", "png", "jpg", "jpeg", "gif", "webp"] },
+        { name: "所有文件", extensions: ["*"] }
+      ]
     });
     if (r.canceled || !r.filePaths[0]) return null;
-    const src = r.filePaths[0];
-    const entries = this.findModelEntries(src);
-    if (entries.length === 0) return { error: "该文件夹里没有找到 *.model3.json（仅支持 Cubism 3/4 模型）" };
-    let id = basename(src);
-    if (!PET_ID_SAFE.test(id)) id = "model";
-    let dst = join(this.modelsDir, id);
-    let n2 = 2;
-    while (existsSync(dst)) {
-      dst = join(this.modelsDir, `${id}-${n2++}`);
+    const file = r.filePaths[0];
+    const isM3 = /\.model3\.json$/i.test(basename(file));
+    const isImg = /\.(png|jpe?g|gif|webp)$/i.test(basename(file));
+    if (!isM3 && !isImg) return { error: "请选择 *.model3.json 或 PNG/JPG/GIF/WebP 图片" };
+    let src;
+    let idSeed;
+    let singleFile = false;
+    if (isM3) {
+      src = dirname(file);
+      idSeed = basename(src);
+      if (this.findModelEntries(src).filter((f) => /\.model3\.json$/i.test(f)).length === 0) {
+        return { error: "模型清单无效（找不到同目录的模型资源）" };
+      }
+    } else {
+      src = file;
+      idSeed = basename(file).replace(/\.(png|jpe?g|gif|webp)$/i, "");
+      singleFile = true;
     }
-    cpSync(src, dst, { recursive: true });
+    if (!PET_ID_SAFE.test(idSeed)) idSeed = isM3 ? "live2d-model" : "image-pet";
+    let dst = join(this.modelsDir, idSeed);
+    let n2 = 2;
+    while (existsSync(dst)) dst = join(this.modelsDir, `${idSeed}-${n2++}`);
+    mkdirSync(dst, { recursive: true });
+    if (singleFile) {
+      copyFileSync(file, join(dst, basename(file)));
+    } else {
+      cpSync(src, dst, { recursive: true });
+    }
     const finalId = basename(dst);
-    const entry = relative(dst, entries[0]).replace(/\\/g, "/");
-    logger.info("[pet] 模型已导入", { finalId, entry });
-    return { id: finalId, entry };
+    const picked = this.pickEntry(this.findModelEntries(dst), dst);
+    if (!picked) {
+      rmSync(dst, { recursive: true, force: true });
+      return { error: "导入失败：未在所选内容中找到可用形象" };
+    }
+    logger.info("[pet] 形象已导入", { finalId, ...picked });
+    return { id: finalId, ...picked };
   }
   async deleteModel(id) {
     if (!PET_ID_SAFE.test(id)) return { ok: false };
