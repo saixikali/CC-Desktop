@@ -5,6 +5,30 @@
 
 ## 2026-10-02
 
+### 新增：桌宠支持图片形象（PNG/JPG/GIF/WebP/APNG）
+- 成员：`out/main/index.js`
+  - 改前 sha256：`13a1ce81f9347850f3a28cf23ffaacb20715891a57397b57df1a4cf190c9b552`（129744 B）
+  - 改后 sha256：`3170bc1d57b9618e63fc9869c8bfd04f6fa0d3dc9e57ccf054140417584fa666`（131289 B）
+  - 整包 sha256：`815699ff7db693244b85bb97c514cbb84d1f2fab552d12a5a4640a1d67c58a31`
+- 外部运行时（`d:\CC Desktop\pet\live2d\`，不入 asar；仓库 `pet-live2d/`）：
+  - `renderer.js` 15640 B → 22837 B，sha256 `49803c3a256080d72a73c41032b8bbfc2b9b52553d0fc2ec7b263c371227d84f`
+  - 新增 `gif-decode.js`（6658 B，sha256 `637eae56a9879273b24379b50275e0a745c53045f5f82f754d1e2e4c858cd78e`）
+  - `index.html` 5814 B `fb2e84575cbd4f398acf3c2d1debaeacefd0feb97184a440e4e15f8b9d245f0b`；`styles.css` 6382 B `dc0d1fb5ea7c044a128a5a88dd013653ce0daad1647f3c4b4a375930bcba3e00`
+- 能力：
+  - 资源扫描/导入同时接受 Live2D（`*.model3.json`）与图片（png/jpg/jpeg/gif/webp）；导入对话框改为选文件：选 model3.json 导入其所在目录，选图片则单文件入 `models/<名>/`；同目录优先识别 model3.json（不再把模型贴图误当形象）；列表带「图片/Live2D」徽章，非法选择有明确报错
+  - 渲染层两条加载路径：Live2D 走 PIXI；图片走新的 canvas 呈现（按窗口等比适配），命中盒/拖拽/吸附/穿透状态机/翻转全部复用
+  - 点击图片：挤压回弹动画；静态图常驻呼吸微动效，动图不加呼吸
+  - **自动抠白底**：四角为统一不透明底色时，从四边泛洪（容差 42）把连通背景变透明；已带 alpha 的图原样保留
+  - **GIF 零依赖自解码器**（LZW/隔行/透明/4 种处置方式/帧延迟）：本机 Windows「关闭动画」+ RDP 环境实测 Chromium 会冻结 `<img>` GIF 且 canvas drawImage 只取首帧，故 GIF 一律自行解码按帧延迟播放并逐帧抠图；APNG/动态 WebP 仍走浏览器（系统未关动画时轮询重绘抠图）
+- 验证：
+  - Node 直解真实素材：两个 640×640 皮肤 GIF 均 8 帧/100ms，一个全不透明、一个部分自带透明
+  - node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 全绿
+  - CDP：`listModels` 正确返回 kind 与中文 id；GIF 四角 alpha=0、500ms 全画面哈希变化（动画在播）；两帧截图红心位置不同；静态 PNG breathing=true；切回 Hiyori 后 PIXI 正常、0 控制台报错
+  - Win32 `WindowFromPoint`：GIF 身体中心命中桌宠(True)、透明角穿透到下层(False)；tap 动画 0ms 挂载/340ms 自动摘除
+- 数据：测试后删除临时「静态测试」形象；保留用户素材导入的「小鲸鱼」GIF 形象；pet.json 复位为 Hiyori
+
+## 2026-10-02
+
 ### 修复：桌宠点击穿透状态机 + 拖拽边界/吸附加固
 - 成员：`out/main/index.js`
   - 改前 sha256：`067e826d34f608da3c48383af2d457456d146a70a01bafc57c48e9c7dfb8966b`（128763 B）
@@ -328,8 +352,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-02「修复：桌宠点击穿透状态机 + 拖拽边界/吸附加固」） | `25d0b86f4c6677be09fa14b9168c5ab6c7924ff158b75890ea01abf51e6cd345` |
-| └ out/main/index.js（129744 B） | `13a1ce81f9347850f3a28cf23ffaacb20715891a57397b57df1a4cf190c9b552` |
+| **当前线上包**（截至 2026-10-03「新增：桌宠支持图片形象（PNG/JPG/GIF/WebP/APNG）」） | `815699ff7db693244b85bb97c514cbb84d1f2fab552d12a5a4640a1d67c58a31` |
+| └ out/main/index.js（131289 B） | `3170bc1d57b9618e63fc9869c8bfd04f6fa0d3dc9e57ccf054140417584fa666` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 

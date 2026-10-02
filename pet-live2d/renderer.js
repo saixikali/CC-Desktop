@@ -5,6 +5,8 @@
   const stage = $("#stage");
   const canvasWrap = $("#canvas-wrap");
   const canvas = $("#pet-canvas");
+  const paintEl = $("#pet-paint");
+  const imgEl = $("#pet-img");
   const bubbleEl = $("#bubble");
   const bubbleText = $("#bubble-text");
   const gear = $("#gear");
@@ -14,6 +16,8 @@
   let cfg = null;
   let models = [];
   let model = null;
+  let currentKind = null; // "live2d" | "image"
+  let imgAnimated = false; // 动图（GIF/APNG/动态 WebP）不加呼吸动画
   let app = null;
   let motionGroups = ["TapBody"];
   let bubbleTimer = null;
@@ -42,7 +46,7 @@
   }
 
   function relayout() {
-    if (!model) return;
+    if (currentKind !== "live2d" || !model) return;
     const w = app.view.clientWidth || window.innerWidth;
     const h = app.view.clientHeight || window.innerHeight;
     const im = model.internalModel;
@@ -58,34 +62,212 @@
     bodyRect.y1 = (h + ch) / 2;
   }
 
-  async function loadModel(id, entry) {
+  /* ============ 图片形象（PNG/JPG/WebP/GIF/APNG，Chromium 解码 + 逐帧泛洪抠图）============ */
+  const modelUrl = (id, entry) =>
+    `models/${encodeURIComponent(id)}/${entry.split("/").map(encodeURIComponent).join("/")}`;
+  const CUT_TOL = 42; // 背景色容差（通道差）
+  const work = document.createElement("canvas");
+  const wctx = work.getContext("2d", { willReadFrequently: true });
+  const pctx = paintEl.getContext("2d");
+  let imgTimer = null;
+  let doCut = false;
+  let gifFrames = null;
+  let gifIndex = 0;
+
+  // 探测 PNG/WebP 是否为动图（APNG 含 acTL 块；动态 WebP 含 ANIM chunk）
+  async function detectAnimated(url, entry) {
+    const ext = entry.toLowerCase().split(".").pop();
+    if (ext === "gif") return true;
+    if (ext !== "png" && ext !== "webp") return false;
+    try {
+      const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+      const bytes = String.fromCharCode(...buf.subarray(0, Math.min(buf.length, 4096)));
+      if (ext === "png") return bytes.includes("acTL");
+      return bytes.includes("ANIM") || bytes.includes("ANMF");
+    } catch { return false; }
+  }
+
+  // 从四条边泛洪，把与种子色（左上角）连通且相近的像素变透明
+  function floodCut(d, w, h) {
+    const n = w * h;
+    const sr = d[0], sg = d[1], sb = d[2];
+    const seen = new Uint8Array(n);
+    const stack = new Int32Array(n);
+    let sp = 0;
+    const tryPush = (x, y) => {
+      if (x < 0 || y < 0 || x >= w || y >= h) return;
+      const i = y * w + x;
+      if (seen[i]) return;
+      const k = i * 4;
+      if (Math.abs(d[k] - sr) <= CUT_TOL && Math.abs(d[k + 1] - sg) <= CUT_TOL && Math.abs(d[k + 2] - sb) <= CUT_TOL) {
+        seen[i] = 1; stack[sp++] = i;
+      }
+    };
+    for (let x = 0; x < w; x++) { tryPush(x, 0); tryPush(x, h - 1); }
+    for (let y = 0; y < h; y++) { tryPush(0, y); tryPush(w - 1, y); }
+    while (sp > 0) {
+      const i = stack[--sp];
+      d[i * 4 + 3] = 0;
+      const x = i % w;
+      const y = (i / w) | 0;
+      tryPush(x + 1, y); tryPush(x - 1, y); tryPush(x, y + 1); tryPush(x, y - 1);
+    }
+  }
+
+  // 四角为统一不透明底色 → 需要抠图；已带 alpha 的图原样使用
+  function detectOpaqueBg(d, w, h) {
+    const at = (x, y) => {
+      const k = (y * w + x) * 4;
+      return [d[k], d[k + 1], d[k + 2], d[k + 3]];
+    };
+    const pts = [at(2, 2), at(w - 3, 2), at(2, h - 3), at(w - 3, h - 3)];
+    if (!pts.every((p) => p[3] === 255)) return false;
+    return pts.every((p) => Math.abs(p[0] - pts[0][0]) <= 8 && Math.abs(p[1] - pts[0][1]) <= 8 && Math.abs(p[2] - pts[0][2]) <= 8);
+  }
+
+  function renderImageFrame() {
+    const w = imgEl.naturalWidth;
+    const h = imgEl.naturalHeight;
+    wctx.drawImage(imgEl, 0, 0, w, h);
+    if (doCut) {
+      const imgd = wctx.getImageData(0, 0, w, h);
+      floodCut(imgd.data, w, h);
+      pctx.putImageData(imgd, 0, 0);
+    } else {
+      pctx.clearRect(0, 0, w, h);
+      pctx.drawImage(imgEl, 0, 0, w, h);
+    }
+  }
+
+  function relayoutImage() {
+    const w = canvasWrap.clientWidth || window.innerWidth;
+    const h = canvasWrap.clientHeight || window.innerHeight;
+    const nw = paintEl.width || 1;
+    const nh = paintEl.height || 1;
+    let dh = h - 4;
+    let dw = dh * nw / nh;
+    if (dw > w) { dw = w; dh = dw * nh / nw; }
+    paintEl.style.width = `${Math.round(dw)}px`;
+    paintEl.style.height = `${Math.round(dh)}px`;
+    const r = paintEl.getBoundingClientRect();
+    bodyRect.x0 = r.left;
+    bodyRect.x1 = r.right;
+    bodyRect.y0 = r.top;
+    bodyRect.y1 = r.bottom;
+  }
+
+  function showPaint(nw, nh, animated) {
+    work.width = paintEl.width = nw;
+    work.height = paintEl.height = nh;
+    paintEl.classList.toggle("breathing", !animated);
+    paintEl.style.display = "block";
+    canvas.style.display = "none";
+    relayoutImage();
+  }
+
+  // GIF 自演：按帧延迟 putImageData（绕开系统动画关闭时 Chromium 冻结 <img> 的问题）
+  function startGifPlayer(frames, w, h) {
+    gifFrames = frames;
+    gifIndex = 0;
+    const step = () => {
+      if (!gifFrames) return;
+      const f = gifFrames[gifIndex];
+      pctx.putImageData(new ImageData(f.data, w, h), 0, 0);
+      gifIndex = (gifIndex + 1) % gifFrames.length;
+      imgTimer = setTimeout(step, Math.max(20, f.delay));
+    };
+    step();
+  }
+
+  async function loadGif(id, entry) {
+    const url = modelUrl(id, entry);
+    const ab = await (await fetch(url)).arrayBuffer();
+    let reader;
+    try { reader = new GifReader(ab); } catch { throw new Error("GIF 解码失败: " + entry); }
+    const frames = reader.renderFrames();
+    doCut = detectOpaqueBg(frames[0].data, reader.width, reader.height);
+    if (doCut) for (const f2 of frames) floodCut(f2.data, reader.width, reader.height);
+    imgAnimated = frames.length > 1;
+    showPaint(reader.width, reader.height, imgAnimated);
+    if (imgAnimated) startGifPlayer(frames, reader.width, reader.height);
+    else pctx.putImageData(new ImageData(frames[0].data, reader.width, reader.height), 0, 0);
+  }
+
+  async function loadImage(id, entry) {
+    if (/\.gif$/i.test(entry)) return loadGif(id, entry);
+    const url = modelUrl(id, entry);
+    await new Promise((resolve2, reject) => {
+      imgEl.onload = () => resolve2();
+      imgEl.onerror = () => reject(new Error("图片解码失败: " + entry));
+      imgEl.src = url;
+    });
+    imgAnimated = await detectAnimated(url, entry);
+    const nw = imgEl.naturalWidth;
+    const nh = imgEl.naturalHeight;
+    wctx.drawImage(imgEl, 0, 0, nw, nh);
+    doCut = detectOpaqueBg(wctx.getImageData(0, 0, nw, nh).data, nw, nh);
+    showPaint(nw, nh, imgAnimated);
+    renderImageFrame();
+    // APNG/动态 WebP：浏览器仍会播放时（系统未关动画），轮询重绘逐帧抠图
+    if (imgAnimated) imgTimer = setInterval(renderImageFrame, 90);
+  }
+
+  async function loadModel(id, entry, kind = "live2d") {
+    if (imgTimer) { clearTimeout(imgTimer); clearInterval(imgTimer); imgTimer = null; }
+    gifFrames = null;
     if (model) {
       app.stage.removeChild(model);
       model.destroy({ children: true });
       model = null;
     }
+    paintEl.classList.remove("breathing", "tap");
+    paintEl.style.display = "none";
+    pctx.clearRect(0, 0, paintEl.width, paintEl.height);
+    imgEl.removeAttribute("src");
+    imgEl.onload = null;
+    imgEl.onerror = null;
+    canvas.style.display = "block";
+    currentKind = kind;
+    bodyRect.x0 = bodyRect.y0 = bodyRect.x1 = bodyRect.y1 = 0;
     try {
-      model = await PIXI.live2d.Live2DModel.from(`models/${encodeURIComponent(id)}/${entry.split("/").map(encodeURIComponent).join("/")}`);
+      if (kind === "image") {
+        await loadImage(id, entry);
+        return;
+      }
+      model = await PIXI.live2d.Live2DModel.from(modelUrl(id, entry));
       app.stage.addChild(model);
       model.anchor.set(0.5, 0.5);
       relayout();
       try {
-        const man = await (await fetch(`models/${encodeURIComponent(id)}/${entry.split("/").map(encodeURIComponent).join("/")}`)).json();
+        const man = await (await fetch(modelUrl(id, entry))).json();
         motionGroups = Object.keys(man?.FileReferences?.Motions || {}).filter((k) => k.toLowerCase() !== "idle");
         if (motionGroups.length === 0) motionGroups = ["TapBody"];
       } catch { /* 忽略清单读取失败 */ }
-      model.on("hit", () => playRandomMotion());
+      model.on("hit", playTap);
     } catch (err) {
-      console.error("[pet] 模型加载失败", err);
-      showBubble("模型加载失败，去资源管理看看");
+      console.error("[pet] 形象加载失败", err);
+      showBubble("形象加载失败，去资源管理看看");
     }
   }
 
-  function playRandomMotion() {
+  // 点击反馈：Live2D 播放随机动作；图片播放一次挤压回弹
+  function playTap() {
+    if (currentKind === "image") {
+      paintEl.classList.remove("tap");
+      void paintEl.offsetWidth; // 重启动画
+      paintEl.classList.add("tap");
+      return;
+    }
     if (!model) return;
     const g = motionGroups[Math.floor(Math.random() * motionGroups.length)];
     try { model.motion(g); } catch { try { model.motion(0); } catch { /* noop */ } }
   }
+  paintEl.addEventListener("animationend", (e) => {
+    if (e.animationName === "pet-tap") paintEl.classList.remove("tap");
+  });
+  window.addEventListener("resize", () => {
+    if (currentKind === "image") relayoutImage();
+  });
 
   /* ============ 气泡 ============ */
   function showBubble(text, ms) {
@@ -218,7 +400,7 @@
       const res = await window.pet.drag("end", e.screenX, e.screenY);
       if (res && typeof res.facing === "number") applyFacing(res.facing);
     } else if (wasDown && !(e.target.closest && e.target.closest("#panel, #ctx-menu, #gear, #bubble"))) {
-      playRandomMotion(); // 纯点击身体才触发放置动作
+      playTap(); // 纯点击身体：Live2D 播放动作 / 图片挤压回弹
     }
     pointerDown = false;
     dragging = false;
@@ -327,7 +509,11 @@
   gear.onclick = openPanel;
   $("#btn-import").onclick = async () => {
     const m = await window.pet.importModel();
-    if (m) { cfg = await window.pet.setConfig({ model: m.id }); await loadModel(m.id, m.entry); syncPanel(); }
+    if (!m) return;
+    if (m.error) { alert(m.error); return; }
+    cfg = await window.pet.setConfig({ model: m.id });
+    await loadModel(m.id, m.entry, m.kind);
+    syncPanel();
   };
 
   /* ============ 资源管理 ============ */
@@ -347,16 +533,17 @@
     const list = $("#res-list");
     list.innerHTML = "";
     if (models.length === 0) {
-      list.innerHTML = `<div class="res-empty">还没有模型<br/>用「导入」选择 Live2D 模型文件夹（含 *.model3.json）</div>`;
+      list.innerHTML = `<div class="res-empty">还没有形象<br/>用「导入」选择 *.model3.json（Live2D）<br/>或 PNG/JPG/GIF/WebP 图片</div>`;
       return;
     }
     for (const m of models) {
       const row = document.createElement("div");
       row.className = "res-item" + (m.id === cfg.model ? " active" : "");
-      row.innerHTML = `<span class="res-name">${m.id}</span>${m.id === cfg.model ? '<span class="res-badge">使用中</span>' : ""}`;
+      const kindLabel = m.kind === "image" ? "图片" : "Live2D";
+      row.innerHTML = `<span class="res-name">${m.id}</span><span class="res-kind-badge">${kindLabel}</span>${m.id === cfg.model ? '<span class="res-badge">使用中</span>' : ""}`;
       row.onclick = async () => {
         cfg = await window.pet.setConfig({ model: m.id });
-        await loadModel(m.id, m.entry);
+        await loadModel(m.id, m.entry, m.kind);
         syncPanel();
         await refreshResList();
       };
@@ -365,11 +552,11 @@
       del.textContent = "删除";
       del.onclick = async (e) => {
         e.stopPropagation();
-        if (!confirm(`删除模型「${m.id}」？`)) return;
+        if (!confirm(`删除形象「${m.id}」？`)) return;
         await window.pet.deleteModel(m.id);
         if (cfg.model === m.id) {
           models = await window.pet.listModels();
-          if (models[0]) { cfg = await window.pet.setConfig({ model: models[0].id }); await loadModel(models[0].id, models[0].entry); }
+          if (models[0]) { cfg = await window.pet.setConfig({ model: models[0].id }); await loadModel(models[0].id, models[0].entry, models[0].kind); }
         }
         syncPanel();
         await refreshResList();
@@ -388,7 +575,7 @@
     if (active) {
       if (active.id !== cfg.model) cfg = await window.pet.setConfig({ model: active.id });
       $("#role-name").value = active.id;
-      await loadModel(active.id, active.entry);
+      await loadModel(active.id, active.entry, active.kind);
     }
     applyConfig();
     // 初始为穿透态，等鼠标移动进来再放开

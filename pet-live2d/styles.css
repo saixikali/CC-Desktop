@@ -5,6 +5,31 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
 #pet-canvas { display: block; width: 100%; height: 100%; }
 .flip #canvas-wrap { transform: scaleX(-1); }
 
+/* ===== 图片形象（PNG/JPG/WebP 静态，GIF/APNG/动态 WebP 由 Chromium 原生解码）===== */
+/* #pet-img 仅作解码器存在：必须留在渲染树（display:none 会冻结 Chromium 的 GIF/APNG 动画）*/
+#pet-img {
+  position: fixed; left: 0; top: 0;
+  width: 1px; height: 1px;
+  opacity: 0; pointer-events: none; z-index: -1;
+}
+#pet-paint {
+  display: none;
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+#pet-paint.breathing { animation: pet-breath 2.6s ease-in-out infinite; }
+@keyframes pet-breath {
+  0%, 100% { transform: translate(-50%, -50%) scale(1, 1); }
+  50% { transform: translate(-50%, -50%) scale(1.02, 0.985); }
+}
+#pet-paint.tap { animation: pet-tap 0.34s ease-out; }
+@keyframes pet-tap {
+  0% { transform: translate(-50%, -50%) scale(1, 1); }
+  40% { transform: translate(-50%, -52%) scale(1.07, 0.94); }
+  100% { transform: translate(-50%, -50%) scale(1, 1); }
+}
+
 /* ===== 气泡 ===== */
 #bubble {
   position: absolute; top: 2px; left: 50%; transform: translateX(-50%);
@@ -104,5 +129,6 @@ input[type="range"] { flex: 1; accent-color: #2f3f8f; height: 4px; }
 .res-item.active { border-color: #2f3f8f; background: #f3f5ff; }
 .res-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .res-badge { font-size: 10px; color: #2f3f8f; background: #e6eaff; border-radius: 5px; padding: 1px 5px; }
+.res-kind-badge { font-size: 10px; color: #7a6320; background: #fdf3d8; border-radius: 5px; padding: 1px 5px; }
 .res-del { border: none; background: none; color: #d5506b; cursor: pointer; font-size: 12px; padding: 2px 4px; }
 .res-empty { text-align: center; color: #9aa0c4; font-size: 12px; padding: 24px 0; }
