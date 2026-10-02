@@ -2804,6 +2804,7 @@ class PetManager {
     return { ok: true };
   }
   /* ---------- 拖拽与吸附 ---------- */
+  static KEEP_VISIBLE = 40; // 拖拽时至少保留在屏幕内的像素，防止彻底丢失
   async drag({ phase, x, y }) {
     const w = this.win;
     if (!w || this.panelOpen) return { facing: this.cfg.facing };
@@ -2811,7 +2812,12 @@ class PetManager {
       const b = w.getBounds();
       this.off = { x: b.x - x, y: b.y - y };
     } else if (phase === "move") {
-      w.setPosition(Math.round(x + this.off.x), Math.round(y + this.off.y));
+      const b = w.getBounds();
+      const wa = screen.getDisplayNearestPoint({ x, y }).workArea;
+      const K = PetManager.KEEP_VISIBLE;
+      const nx = Math.min(Math.max(Math.round(x + this.off.x), wa.x - b.width + K), wa.x + wa.width - K);
+      const ny = Math.min(Math.max(Math.round(y + this.off.y), wa.y), wa.y + wa.height - K);
+      w.setPosition(nx, ny);
     } else if (phase === "end") {
       return await this.snap(w);
     }
@@ -2821,49 +2827,59 @@ class PetManager {
     // best-effort：拖放结束时探测前台窗口矩形（避让其右侧滚动条），失败返回 null
     return await new Promise((resolve2) => {
       const ps = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class WR{[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();[DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out RECT r);public struct RECT{public int L;public int T;public int R;public int B;}}';$h=[WR]::GetForegroundWindow();$r=New-Object WR+RECT;[void][WR]::GetWindowRect($h,[ref]$r);"$($r.L),$($r.T),$($r.R),$($r.B)"`;
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; resolve2(v); } };
+      const timer = setTimeout(() => finish(null), 1500);
       try {
-        execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { timeout: 900, windowsHide: true }, (err, stdout) => {
-          if (err) return resolve2(null);
+        execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { timeout: 1500, windowsHide: true }, (err, stdout) => {
+          clearTimeout(timer);
+          if (err) return finish(null);
           const m = String(stdout).trim().match(/^(-?\d+),(-?\d+),(-?\d+),(-?\d+)$/);
-          resolve2(m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null);
+          finish(m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null);
         });
-      } catch { resolve2(null); }
+      } catch { clearTimeout(timer); finish(null); }
     });
   }
+  async animateTo(w, b, tx, ty, steps = 5) {
+    for (let i = 1; i <= steps; i++) {
+      const xx = Math.round(b.x + (tx - b.x) * i / steps);
+      const yy = Math.round(b.y + (ty - b.y) * i / steps);
+      w.setPosition(xx, yy);
+      await new Promise((r) => setTimeout(r, 14));
+    }
+  }
   async snap(w) {
-    const b = w.getBounds();
-    const disp = screen.getDisplayNearestPoint({ x: b.x, y: b.y });
+    const b0 = w.getBounds();
+    const disp = screen.getDisplayNearestPoint({ x: b0.x, y: b0.y });
     const wa = disp.workArea;
-    const cx = b.x + b.width / 2;
-    let targetX = b.x;
+    const K = PetManager.KEEP_VISIBLE;
+    let targetX = b0.x;
     let side = null;
     const SNAP = 48;
     if (this.cfg.edgeSnap) {
-      if (b.x - wa.x < SNAP) { targetX = wa.x + 6; side = "L"; }
-      else if (wa.x + wa.width - (b.x + b.width) < SNAP) {
-        targetX = wa.x + wa.width - b.width - 6;
+      if (b0.x - wa.x < SNAP) { targetX = wa.x + 6; side = "L"; }
+      else if (wa.x + wa.width - (b0.x + b0.width) < SNAP) {
+        targetX = wa.x + wa.width - b0.width - 6;
         if (this.cfg.avoidScrollbar) targetX -= this.cfg.scrollbarGap;
         side = "R";
       }
     }
-    let targetY = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - b.height);
+    // 非吸附侧也要保证窗口停留在可见区域内
+    targetX = Math.min(Math.max(targetX, wa.x - b0.width + K), wa.x + wa.width - K);
+    const targetY = Math.min(Math.max(b0.y, wa.y), wa.y + wa.height - b0.height);
+    if (this.cfg.autoFlip && side) this.cfg.facing = side === "L" ? 1 : -1;
+    // 先滑动到基础目标位（不等前台窗口探测，避免卡顿）
+    await this.animateTo(w, b0, targetX, targetY);
+    // 右侧吸附 + 避让滚动条：探测成功再做一次校正（贴到前台窗口滚动条左侧）
     if (side === "R" && this.cfg.avoidScrollbar) {
-      // 若前台窗口右缘就在屏幕右侧附近，桌宠贴在窗口滚动条左侧
       try {
         const fg = await this.foregroundRect();
-        if (fg && fg.r > wa.x + wa.width - 200 && b.y < fg.b && targetY + b.height > fg.t) {
-          targetX = Math.max(wa.x + 6, fg.r - b.width - this.cfg.scrollbarGap);
+        if (fg && fg.r > wa.x + wa.width - 200 && b0.y < fg.b && targetY + b0.height > fg.t) {
+          const corrected = Math.max(wa.x + 6, fg.r - b0.width - this.cfg.scrollbarGap);
+          w.setPosition(corrected, targetY);
+          targetX = corrected;
         }
       } catch { /* noop */ }
-    }
-    if (this.cfg.autoFlip && side) this.cfg.facing = side === "L" ? 1 : -1;
-    // 简单滑动动画
-    const steps = 5;
-    for (let i = 1; i <= steps; i++) {
-      const xx = Math.round(b.x + (targetX - b.x) * i / steps);
-      const yy = Math.round(b.y + (targetY - b.y) * i / steps);
-      w.setPosition(xx, yy);
-      await new Promise((r) => setTimeout(r, 14));
     }
     this.cfg.x = targetX;
     this.cfg.y = targetY;
