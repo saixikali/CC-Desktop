@@ -5,6 +5,29 @@
 
 ## 2026-10-02
 
+### 修复：桌宠点击穿透状态机 + 拖拽边界/吸附加固
+- 成员：`out/main/index.js`
+  - 改前 sha256：`067e826d34f608da3c48383af2d457456d146a70a01bafc57c48e9c7dfb8966b`（128763 B）
+  - 改后 sha256：`13a1ce81f9347850f3a28cf23ffaacb20715891a57397b57df1a4cf190c9b552`（129744 B）
+  - 整包 sha256：`25d0b86f4c6677be09fa14b9168c5ab6c7924ff158b75890ea01abf51e6cd345`
+- 外部运行时（`d:\CC Desktop\pet\live2d\`，不入 asar；仓库 `pet-live2d/`）：
+  - `renderer.js`：`8b3c2b9e…`（15606 B）→ `2948a6e937c51a13de5e3647335b174cab53daee68db1951382574722254a9b2`（15640 B）
+  - `preload.cjs`：→ `2c506b7fba293653b2383c8faa0e460c30d6b851fe50dd562498b53fd62916d2`（仅注释路径修正）
+- 审查发现并修复的问题：
+  1. **拖拽会被穿透逻辑打断**（真实缺陷）：旧代码在 pointermove 里无条件重算穿透，拖拽中指针扫过身体两侧透明区会 `setIgnoreMouseEvents(true)`，窗口立即丢失指针事件、拖拽冻结。改为显式状态机 `applyPointerPolicy()` 唯一入口，优先级固化：**拖拽/按压 > 设置面板 > 悬停交互区 > 穿透**，任何事件路径不得绕过（对照既有踩坑经验：禁止拖拽期间开穿透）
+  2. **幻影拖拽**（真实缺陷）：在气泡/齿轮上按下后移动，旧代码仅凭 `buttons===1` 就发 `drag:move`，起点从未登记 → 用陈旧偏移把窗口甩到鼠标位置。改为 `pointerDown` 仅在舞台 pointerdown 成功时置位，拖拽必须由一次有效按下发起
+  3. 命中区从写死的百分比矩形改为**模型真实包围盒**（`internalModel.originalWidth/Height × 实际 scale`，relayout 时计算），不同大小/模型比例下都贴合
+  4. 补 pointercancel / window blur 复位按压态；纯点击气泡/齿轮不再误触放置动作；mouseleave 不再直接操作 IPC
+- 主进程加固：拖拽 move 阶段按光标所在显示器 workArea 软夹（至少保留 40px 可见，跨显示器用 `getDisplayNearestPoint`），防止窗口被甩丢；snap 非吸附侧 x 也夹回可见区；前台窗口滚动条探测改为**先滑动到位、探测成功再校正**（PowerShell 超时 0.9→1.5s 且不再阻塞吸附动画），`resolve2` 加一次性 settled 保护
+- 验证：
+  - node --check ✓；verify-asar 四重校验 ✓；test-roundtrip 7897/2/0 ✓
+  - 合成指针事件：气泡上拖动窗口位移 (0,0)（幻影已消）；纯点击位移 (0,0)；真实拖拽窗口跟随
+  - IPC 级吸附：右缘（跨显示器）→ x 贴边 facing=-1；左缘 → 34px 入吸附区，终位 x=6 facing=1 并持久化 pet.json ✓
+  - **OS 级穿透四态**（PowerShell P/Invoke `WindowFromPoint`+`GetAncestor` 命中桌宠 HWND 592210）：透明角→穿透到下层窗口(False)；身体中心→命中桌宠(True)；**拖拽中扫到透明角→仍命中桌宠(True，旧 bug 场景)**；松手→恢复穿透(False)
+- 数据：测试后 pet.json 位置复位为 null（首现回到屏幕右下角）
+
+## 2026-10-02
+
 ### 新增：Live2D 桌宠（参考 DSH/小鲸鱼桌宠面板，壳内透明置顶窗）
 - 成员：`out/main/index.js`
   - 改前 sha256：`b253e542d0ed0afd4dd6f314eba93296320c18546df6ceba215081e365e62ff5`（114820 B）
@@ -305,8 +328,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-02「新增：Live2D 桌宠（参考 DSH/小鲸鱼桌宠面板，壳内透明置顶窗）」） | `d353c945d513104630572fb93c58555d3aa1a094db4e7fbc2a7c6fad4ac365c0` |
-| └ out/main/index.js（128763 B） | `067e826d34f608da3c48383af2d457456d146a70a01bafc57c48e9c7dfb8966b` |
+| **当前线上包**（截至 2026-10-02「修复：桌宠点击穿透状态机 + 拖拽边界/吸附加固」） | `25d0b86f4c6677be09fa14b9168c5ab6c7924ff158b75890ea01abf51e6cd345` |
+| └ out/main/index.js（129744 B） | `13a1ce81f9347850f3a28cf23ffaacb20715891a57397b57df1a4cf190c9b552` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 

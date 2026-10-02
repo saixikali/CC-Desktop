@@ -1,4 +1,4 @@
-/* CC Desktop 桌宠渲染层（文件位于安装目录 pet/ 下） */
+/* CC Desktop 桌宠渲染层（位于安装目录 pet/live2d/ 下，独立 partition，不进 asar） */
 (() => {
   "use strict";
   const $ = (s) => document.querySelector(s);
@@ -19,9 +19,14 @@
   let bubbleTimer = null;
   let idleTimer = null;
   let audioCtx = null;
+  // 指针策略状态机（唯一入口 applyPointerPolicy；优先级：拖拽/按压 > 面板 > 悬停可交互区 > 穿透）
   let ignoreState = true;
-  let dragMoved = false;
-  const dragStart = { x: 0, y: 0, wx: 0, wy: 0 };
+  let pointerDown = false;   // 指针在舞台（非 UI）按下
+  let dragging = false;      // 已越过 4px 阈值，正在拖拽
+  let hoverInteractive = false; // 指针是否位于身体/控件可交互区
+  const dragStart = { x: 0, y: 0 };
+  // 模型在窗口 CSS 像素中的实际包围盒（relayout 时按 originalWidth/Height × scale 计算）
+  const bodyRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
   /* ============ PIXI / Live2D ============ */
   async function initPixi() {
@@ -44,6 +49,13 @@
     const s = Math.min(w / im.originalWidth, h / im.originalHeight);
     model.scale.set(s);
     model.position.set(w / 2, h / 2);
+    // 模型实际包围盒（CSS 像素，居中）；originalWidth/Height 为 moc 画布尺寸
+    const cw = im.originalWidth * s;
+    const ch = im.originalHeight * s;
+    bodyRect.x0 = (w - cw) / 2;
+    bodyRect.x1 = (w + cw) / 2;
+    bodyRect.y0 = (h - ch) / 2;
+    bodyRect.y1 = (h + ch) / 2;
   }
 
   async function loadModel(id, entry) {
@@ -154,35 +166,75 @@
   const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   /* ============ 拖拽 / 点击 / 右键 ============ */
+  function panelOpen() { return !panel.classList.contains("panel-hidden"); }
+  // 命中测试：面板/气泡/齿轮/右键菜单为控件区；否则用模型真实包围盒
+  function hitTest(e) {
+    if (panelOpen()) return true;
+    if (e.target.closest && e.target.closest("#bubble, #gear, #ctx-menu")) return true;
+    return e.clientX >= bodyRect.x0 && e.clientX <= bodyRect.x1 &&
+           e.clientY >= bodyRect.y0 && e.clientY <= bodyRect.y1;
+  }
+  // 穿透策略唯一下发入口。优先级不可被任何事件路径绕过：
+  // 拖拽/按压 > 面板打开 > 悬停在交互区 > 穿透
+  function applyPointerPolicy() {
+    const interactive = dragging || pointerDown || panelOpen() || hoverInteractive;
+    const next = !interactive;
+    if (next !== ignoreState) {
+      ignoreState = next;
+      window.pet.setIgnore(next);
+    }
+  }
+
   stage.addEventListener("pointerdown", (e) => {
     if (e.button === 2) return;
-    if (e.target.closest("#panel, #ctx-menu, #gear, #bubble")) return;
-    dragMoved = false;
+    if (e.target.closest("#panel, #ctx-menu, #gear, #bubble")) return; // 控件自行处理，不进入拖拽状态机
+    pointerDown = true;
+    dragging = false;
     dragStart.x = e.screenX;
     dragStart.y = e.screenY;
-    stage.setPointerCapture(e.pointerId);
+    try { stage.setPointerCapture(e.pointerId); } catch { /* noop */ }
     window.pet.drag("start", e.screenX, e.screenY);
+    applyPointerPolicy(); // 按下即锁定不穿透，防止后续 move 扫到透明区把拖拽打断
   });
   stage.addEventListener("pointermove", (e) => {
     if (model && !panelOpen()) {
       const r = canvas.getBoundingClientRect();
       model.focus(e.clientX - r.left, e.clientY - r.top);
     }
-    if (e.buttons === 1 && e.pointerType === "mouse") {
-      if (Math.abs(e.screenX - dragStart.x) + Math.abs(e.screenY - dragStart.y) > 4) dragMoved = true;
-      if (dragMoved) window.pet.drag("move", e.screenX, e.screenY);
+    hoverInteractive = hitTest(e);
+    // 只有在舞台成功 pointerdown 后才可能进入拖拽（避免按住气泡/齿轮移动产生幻影拖拽）
+    if (pointerDown && !dragging &&
+        Math.abs(e.screenX - dragStart.x) + Math.abs(e.screenY - dragStart.y) > 4) {
+      dragging = true;
     }
-    updateClickThrough(e);
+    if (dragging) window.pet.drag("move", e.screenX, e.screenY);
+    applyPointerPolicy();
   });
-  stage.addEventListener("pointerup", async (e) => {
-    if (e.button !== 0) return;
-    if (dragMoved) {
+  const endPointer = async (e) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    const wasDragging = dragging;
+    const wasDown = pointerDown;
+    if (wasDragging) {
       const res = await window.pet.drag("end", e.screenX, e.screenY);
       if (res && typeof res.facing === "number") applyFacing(res.facing);
-    } else if (!e.target.closest("#panel, #ctx-menu, #gear")) {
-      playRandomMotion();
+    } else if (wasDown && !(e.target.closest && e.target.closest("#panel, #ctx-menu, #gear, #bubble"))) {
+      playRandomMotion(); // 纯点击身体才触发放置动作
     }
-    dragMoved = false;
+    pointerDown = false;
+    dragging = false;
+    hoverInteractive = hitTest(e);
+    applyPointerPolicy();
+  };
+  stage.addEventListener("pointerup", endPointer);
+  stage.addEventListener("pointercancel", () => {
+    pointerDown = false;
+    dragging = false;
+    applyPointerPolicy();
+  });
+  window.addEventListener("blur", () => {
+    pointerDown = false;
+    dragging = false;
+    applyPointerPolicy();
   });
   stage.addEventListener("contextmenu", (e) => {
     e.preventDefault();
@@ -203,26 +255,10 @@
     }
   });
 
-  /* ============ 点击穿透（透明区域） ============ */
-  function panelOpen() { return !panel.classList.contains("panel-hidden"); }
-  function updateClickThrough(e) {
-    let hit = true;
-    if (!panelOpen()) {
-      if (e.target.closest && e.target.closest("#bubble, #gear, #ctx-menu")) hit = true;
-      else {
-        // 用身体近似区域做命中（Live2D 透明四角不挡鼠标）
-        const x = e.clientX / window.innerWidth;
-        const y = e.clientY / window.innerHeight;
-        hit = x > 0.16 && x < 0.84 && y > 0.06 && y < 0.98;
-      }
-    }
-    if (hit !== !ignoreState) {
-      ignoreState = !hit;
-      window.pet.setIgnore(ignoreState);
-    }
-  }
+  // 指针离开窗口：清除悬停态（拖拽中因 dragging 优先级最高，不会被穿透）
   document.addEventListener("mouseleave", () => {
-    if (!ignoreState && !panelOpen()) { ignoreState = true; window.pet.setIgnore(true); }
+    hoverInteractive = false;
+    applyPointerPolicy();
   });
 
   /* ============ 设置面板 ============ */

@@ -1,4 +1,4 @@
-// CC Desktop 桌宠 preload（文件位于安装目录 pet/ 下，独立 partition，不进 asar）
+// CC Desktop 桌宠 preload（位于安装目录 pet/live2d/ 下，独立 partition，不进 asar）
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("pet", {
