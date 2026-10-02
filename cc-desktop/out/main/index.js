@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, appendFile, readFile, writeFile, rename, unlink, readdir } from "node:fs/promises";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import pty from "node-pty";
 import updaterModule from "electron-updater";
 // === 运行数据目录重定向到安装盘（与 CC Desktop.exe 同级的 data/，如 d:\CC Desktop\data）===
@@ -2419,6 +2419,14 @@ class TrayService {
       },
       { type: "separator" },
       {
+        id: "pet",
+        label: "桌宠",
+        type: "checkbox",
+        checked: this.opts.getPetState ? this.opts.getPetState() : true,
+        click: (item) => this.opts.onTogglePet?.(item.checked)
+      },
+      { type: "separator" },
+      {
         id: "status",
         label: `引擎：${STATUS_LABEL[status.state]}${version}`,
         enabled: false
@@ -2432,6 +2440,10 @@ class TrayService {
     const menu = Menu.buildFromTemplate(template);
     this.tray.setContextMenu(menu);
     this.statusItem = menu.getMenuItemById("status");
+    this.petItem = menu.getMenuItemById("pet");
+  }
+  setPetChecked(v) {
+    if (this.petItem) this.petItem.checked = Boolean(v);
   }
   showWindow() {
     const win = this.opts.getWindow();
@@ -2567,6 +2579,350 @@ class NotificationService {
     return null;
   }
 }
+// ==================== 桌宠（Live2D，运行时文件在 <安装目录>/pet/live2d/，不打进 asar；pet/ 根目录另有旧版 Python GIF 桌宠）====================
+const PET_DEFAULTS = {
+  enabled: true,
+  model: null,
+  scale: 7,
+  x: null,
+  y: null,
+  facing: 1,
+  bubbles: true,
+  bubbleDuration: 6,
+  bubbleClickDismiss: true,
+  idleLines: true,
+  sound: true,
+  evTurn: true,
+  evApproval: true,
+  volume: 60,
+  avoidScrollbar: false,
+  scrollbarGap: 17,
+  edgeSnap: true,
+  autoFlip: true,
+  hideMenu: false
+};
+const PET_ID_SAFE = /^[A-Za-z0-9._\-\u4e00-\u9fa5()（）【】 \[\]]{1,80}$/;
+class PetManager {
+  constructor() {
+    this.dir = join(dirname(app.getPath("exe")), "pet", "live2d");
+    this.modelsDir = join(this.dir, "models");
+    this.file = join(app.getPath("userData"), "pet.json");
+    this.cfg = { ...PET_DEFAULTS, ...this.load() };
+    this.win = null;
+    this.panelOpen = false;
+    this.off = { x: 0, y: 0 };
+    this.onStateChange = null;
+    try { mkdirSync(this.modelsDir, { recursive: true }); } catch { /* noop */ }
+    this.registerIpc();
+  }
+  load() {
+    try { return JSON.parse(readFileSync(this.file, "utf8")); } catch { return {}; }
+  }
+  save() {
+    try { writeFileSync(this.file, JSON.stringify(this.cfg, null, 2)); } catch (e2) { logger.warn("[pet] 配置保存失败", e2?.message); }
+  }
+  petSize() {
+    const h = Math.round(140 + this.cfg.scale * 26);
+    return { w: Math.round(h * 0.78), h };
+  }
+  panelSize(wa) {
+    return { w: Math.min(356, wa.width - 12), h: Math.min(572, wa.height - 12) };
+  }
+  entryFile() { return join(this.dir, "index.html"); }
+  async show() {
+    if (!existsSync(this.entryFile())) {
+      logger.warn("[pet] 运行时目录缺失，跳过启动", this.dir);
+      return;
+    }
+    this.cfg.enabled = true;
+    this.save();
+    if (this.win && !this.win.isDestroyed()) {
+      this.win.show();
+      return;
+    }
+    const size = this.petSize();
+    const wa = screen.getPrimaryDisplay().workArea;
+    let { x, y } = this.clampPos(this.cfg.x ?? wa.x + wa.width - size.w - 12, this.cfg.y ?? wa.y + wa.height - size.h - 8, size, wa);
+    const win = new BrowserWindow({
+      width: size.w,
+      height: size.h,
+      x,
+      y,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      hasShadow: false,
+      show: false,
+      focusable: false,
+      webPreferences: {
+        preload: join(this.dir, "preload.cjs"),
+        partition: "persist:ccpet",
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false
+      }
+    });
+    this.win = win;
+    win.setAlwaysOnTop(true, "screen-saver");
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    win.once("ready-to-show", () => {
+      win.show();
+      try { win.setIgnoreMouseEvents(true, { forward: true }); } catch { /* noop */ }
+    });
+    win.on("closed", () => { this.win = null; });
+    await win.loadURL(pathToFileURL(this.entryFile()).href);
+  }
+  hide() {
+    this.cfg.enabled = false;
+    this.save();
+    if (this.win && !this.win.isDestroyed()) this.win.hide();
+    this.onStateChange?.(false);
+  }
+  async setEnabled(v) {
+    if (v) await this.show();
+    else this.hide();
+    this.onStateChange?.(v);
+  }
+  clampPos(x, y, size, wa) {
+    x = Math.round(Math.min(Math.max(x, wa.x - size.w + 40), wa.x + wa.width - 40));
+    y = Math.round(Math.min(Math.max(y, wa.y), wa.y + wa.height - 40));
+    return { x, y };
+  }
+  getConfig() {
+    return { ...this.cfg, panelOpen: this.panelOpen, modelsDir: this.modelsDir };
+  }
+  async setConfig(patch) {
+    const prevScale = this.cfg.scale;
+    const panelOpenFlag = patch.panelOpen;
+    delete patch.panelOpen;
+    Object.assign(this.cfg, patch);
+    this.save();
+    if (this.win && !this.win.isDestroyed()) {
+      if (panelOpenFlag === true) await this.openPanel();
+      else if (panelOpenFlag === false) await this.closePanel();
+      else if (patch.scale && patch.scale !== prevScale) await this.applySize();
+    }
+    return this.getConfig();
+  }
+  async applySize() {
+    const b = this.win.getBounds();
+    const size = this.petSize();
+    const cx = b.x + b.width / 2;
+    const bottom = b.y + b.height;
+    const wa = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
+    let x = Math.round(cx - size.w / 2);
+    let y = bottom - size.h;
+    ({ x, y } = this.clampPos(x, y, size, wa));
+    this.cfg.x = x;
+    this.cfg.y = y;
+    this.save();
+    this.win.setBounds({ x, y, width: size.w, height: size.h });
+  }
+  async openPanel() {
+    if (this.panelOpen) return;
+    this.panelOpen = true;
+    const b = this.win.getBounds();
+    const wa = screen.getDisplayNearestPoint({ x: b.x, y: b.y }).workArea;
+    const size = this.panelSize(wa);
+    let x = Math.round(b.x + b.width / 2 - size.w / 2);
+    let y = wa.y + wa.height - size.h - 8;
+    x = Math.max(wa.x + 6, Math.min(x, wa.x + wa.width - size.w - 6));
+    this.savedPetBounds = { x: b.x, y: b.y, ...this.petSize() };
+    this.win.setBounds({ x, y, width: size.w, height: size.h });
+    try { this.win.setIgnoreMouseEvents(false); } catch { /* noop */ }
+  }
+  async closePanel() {
+    if (!this.panelOpen) return;
+    this.panelOpen = false;
+    const size = this.petSize();
+    const wa = screen.getDisplayNearestPoint({ x: this.cfg.x ?? 0, y: this.cfg.y ?? 0 }).workArea;
+    let { x, y } = this.clampPos(this.cfg.x ?? wa.x + wa.width - size.w - 12, this.cfg.y ?? wa.y + wa.height - size.h - 8, size, wa);
+    this.win.setBounds({ x, y, width: size.w, height: size.h });
+    try { this.win.setIgnoreMouseEvents(true, { forward: true }); } catch { /* noop */ }
+  }
+  /* ---------- 模型 ---------- */
+  findModelEntries(dir, depth = 0) {
+    const out = [];
+    if (depth > 4) return out;
+    let entries = [];
+    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return out; }
+    for (const ent of entries) {
+      if (ent.name.startsWith(".") || ent.name === "node_modules") continue;
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) out.push(...this.findModelEntries(full, depth + 1));
+      else if (/\.model3\.json$/i.test(ent.name)) out.push(full);
+    }
+    return out;
+  }
+  listModels() {
+    const out = [];
+    let dirs = [];
+    try { dirs = readdirSync(this.modelsDir, { withFileTypes: true }); } catch { return out; }
+    for (const d of dirs) {
+      if (!d.isDirectory() || d.name.startsWith(".")) continue;
+      const entries = this.findModelEntries(join(this.modelsDir, d.name));
+      if (entries[0]) {
+        out.push({ id: d.name, entry: relative(join(this.modelsDir, d.name), entries[0]).replace(/\\/g, "/") });
+      }
+    }
+    return out;
+  }
+  async importModel() {
+    const r = await dialog.showOpenDialog(this.win ?? undefined, {
+      title: "选择 Live2D 模型文件夹（内含 *.model3.json）",
+      properties: ["openDirectory"]
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const src = r.filePaths[0];
+    const entries = this.findModelEntries(src);
+    if (entries.length === 0) return { error: "该文件夹里没有找到 *.model3.json（仅支持 Cubism 3/4 模型）" };
+    let id = basename(src);
+    if (!PET_ID_SAFE.test(id)) id = "model";
+    let dst = join(this.modelsDir, id);
+    let n2 = 2;
+    while (existsSync(dst)) {
+      dst = join(this.modelsDir, `${id}-${n2++}`);
+    }
+    cpSync(src, dst, { recursive: true });
+    const finalId = basename(dst);
+    const entry = relative(dst, entries[0]).replace(/\\/g, "/");
+    logger.info("[pet] 模型已导入", { finalId, entry });
+    return { id: finalId, entry };
+  }
+  async deleteModel(id) {
+    if (!PET_ID_SAFE.test(id)) return { ok: false };
+    const dst = join(this.modelsDir, id);
+    if (dst.indexOf(this.modelsDir) !== 0) return { ok: false };
+    rmSync(dst, { recursive: true, force: true });
+    if (this.cfg.model === id) {
+      const rest = this.listModels();
+      this.cfg.model = rest[0]?.id ?? null;
+      this.save();
+    }
+    return { ok: true };
+  }
+  /* ---------- 拖拽与吸附 ---------- */
+  async drag({ phase, x, y }) {
+    const w = this.win;
+    if (!w || this.panelOpen) return { facing: this.cfg.facing };
+    if (phase === "start") {
+      const b = w.getBounds();
+      this.off = { x: b.x - x, y: b.y - y };
+    } else if (phase === "move") {
+      w.setPosition(Math.round(x + this.off.x), Math.round(y + this.off.y));
+    } else if (phase === "end") {
+      return await this.snap(w);
+    }
+    return { facing: this.cfg.facing };
+  }
+  async foregroundRect() {
+    // best-effort：拖放结束时探测前台窗口矩形（避让其右侧滚动条），失败返回 null
+    return await new Promise((resolve2) => {
+      const ps = `Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public class WR{[DllImport("user32.dll")]public static extern IntPtr GetForegroundWindow();[DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out RECT r);public struct RECT{public int L;public int T;public int R;public int B;}}';$h=[WR]::GetForegroundWindow();$r=New-Object WR+RECT;[void][WR]::GetWindowRect($h,[ref]$r);"$($r.L),$($r.T),$($r.R),$($r.B)"`;
+      try {
+        execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { timeout: 900, windowsHide: true }, (err, stdout) => {
+          if (err) return resolve2(null);
+          const m = String(stdout).trim().match(/^(-?\d+),(-?\d+),(-?\d+),(-?\d+)$/);
+          resolve2(m ? { l: +m[1], t: +m[2], r: +m[3], b: +m[4] } : null);
+        });
+      } catch { resolve2(null); }
+    });
+  }
+  async snap(w) {
+    const b = w.getBounds();
+    const disp = screen.getDisplayNearestPoint({ x: b.x, y: b.y });
+    const wa = disp.workArea;
+    const cx = b.x + b.width / 2;
+    let targetX = b.x;
+    let side = null;
+    const SNAP = 48;
+    if (this.cfg.edgeSnap) {
+      if (b.x - wa.x < SNAP) { targetX = wa.x + 6; side = "L"; }
+      else if (wa.x + wa.width - (b.x + b.width) < SNAP) {
+        targetX = wa.x + wa.width - b.width - 6;
+        if (this.cfg.avoidScrollbar) targetX -= this.cfg.scrollbarGap;
+        side = "R";
+      }
+    }
+    let targetY = Math.min(Math.max(b.y, wa.y), wa.y + wa.height - b.height);
+    if (side === "R" && this.cfg.avoidScrollbar) {
+      // 若前台窗口右缘就在屏幕右侧附近，桌宠贴在窗口滚动条左侧
+      try {
+        const fg = await this.foregroundRect();
+        if (fg && fg.r > wa.x + wa.width - 200 && b.y < fg.b && targetY + b.height > fg.t) {
+          targetX = Math.max(wa.x + 6, fg.r - b.width - this.cfg.scrollbarGap);
+        }
+      } catch { /* noop */ }
+    }
+    if (this.cfg.autoFlip && side) this.cfg.facing = side === "L" ? 1 : -1;
+    // 简单滑动动画
+    const steps = 5;
+    for (let i = 1; i <= steps; i++) {
+      const xx = Math.round(b.x + (targetX - b.x) * i / steps);
+      const yy = Math.round(b.y + (targetY - b.y) * i / steps);
+      w.setPosition(xx, yy);
+      await new Promise((r) => setTimeout(r, 14));
+    }
+    this.cfg.x = targetX;
+    this.cfg.y = targetY;
+    this.save();
+    return { x: targetX, y: targetY, facing: this.cfg.facing };
+  }
+  /* ---------- 会话事件 ---------- */
+  bindBackend(claudeConv) {
+    claudeConv.on("notification", (envelope) => {
+      if (envelope.method !== "turn/completed") return;
+      const p = envelope.params ?? {};
+      const failed = p.turn?.status === "failed" || Boolean(p.turn?.error);
+      this.sendEvent({ kind: failed ? "turnFailed" : "turnCompleted" });
+    });
+    claudeConv.on("approval", (approval) => {
+      if (approval.status !== "pending") return;
+      this.sendEvent({ kind: "approval", text: this.approvalText(approval) });
+    });
+  }
+  approvalText(a) {
+    const params = a.params ?? {};
+    const walk = (o, keys) => {
+      if (!o || typeof o !== "object") return null;
+      for (const k of keys) {
+        const v = o[k];
+        if (typeof v === "string" && v.trim()) return v;
+      }
+      for (const v of Object.values(o)) {
+        if (v && typeof v === "object") {
+          const hit = walk(v, keys);
+          if (hit) return hit;
+        }
+      }
+      return null;
+    };
+    return walk(params, ["command", "cmd", "path", "filePath", "filename"]);
+  }
+  sendEvent(payload) {
+    if (this.win && !this.win.isDestroyed() && this.cfg.enabled) {
+      this.win.webContents.send("pet:event", payload);
+    }
+  }
+  registerIpc() {
+    ipcMain.handle("pet:get-config", () => this.getConfig());
+    ipcMain.handle("pet:set-config", (_e, patch) => this.setConfig(patch || {}));
+    ipcMain.handle("pet:list-models", () => this.listModels());
+    ipcMain.handle("pet:import-model", () => this.importModel());
+    ipcMain.handle("pet:delete-model", (_e, id) => this.deleteModel(String(id || "")));
+    ipcMain.handle("pet:open-models-dir", () => shell.openPath(this.modelsDir));
+    ipcMain.handle("pet:drag", (_e, arg) => this.drag(arg || {}));
+    ipcMain.handle("pet:hide", () => this.hide());
+    ipcMain.on("pet:set-ignore", (_e, ignore) => {
+      if (this.win && !this.win.isDestroyed()) {
+        try { this.win.setIgnoreMouseEvents(!!ignore, { forward: true }); } catch { /* noop */ }
+      }
+    });
+  }
+}
+
 const SHELL_CANDIDATES = ["pwsh.exe", "powershell.exe", "cmd.exe"];
 function findOnPath(exe) {
   const dirs = (process.env["PATH"] ?? "").split(";").filter(Boolean);
@@ -3091,11 +3447,18 @@ if (gotLock) {
       broadcast
     );
     notifications.bind();
+    const pet = new PetManager();
+    pet.bindBackend(claudeConv);
+    pet.onStateChange = (v) => tray?.setPetChecked(v);
     tray = new TrayService({
       getWindow: () => mainWindow,
       onNewThread: () => broadcast(EVENTS.appNewThread),
-      onQuit: () => app.quit()
+      onQuit: () => app.quit(),
+      getPetState: () => pet.cfg.enabled,
+      onTogglePet: (v) => void pet.setEnabled(v)
     });
+    pet.onStateChange = (v) => tray?.setPetChecked(v);
+    if (pet.cfg.enabled) void pet.show();
     mainWindow = await createMainWindow(windowState.get());
     windowState.track(mainWindow);
     bindWindowStateEvents(mainWindow);
