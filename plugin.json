@@ -1,0 +1,30 @@
+{
+  "name": "DeepSeek 余额与用量记账",
+  "description": "MCP 工具：get_balance 查余额并记录观测，get_usage 读账本，report_usage 手动补记；外加 Stop hook 自动逐轮记账。",
+  "version": "1.2.0",
+  "author": "local",
+  "mcp": {
+    "whale-balance": {
+      "type": "stdio",
+      "command": "${PLUGIN_DIR}/../../CC Desktop.exe",
+      "args": ["${PLUGIN_DIR}/server.mjs"],
+      "cwd": "${PLUGIN_DIR}",
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1"
+      }
+    }
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "timeout": 20,
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${PLUGIN_DIR}/../../CC Desktop.exe\" \"${PLUGIN_DIR}/hook-stop.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

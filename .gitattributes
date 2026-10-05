@@ -1,0 +1,7 @@
+# 与 .trae/skills/electron-asar-patch 保持一致：源码一律 LF。
+# 不这样定，git 会在 checkout 时把行尾换成 CRLF，工作区与历史悄悄不一致。
+* text=auto eol=lf
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.log text eol=lf

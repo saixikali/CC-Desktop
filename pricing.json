@@ -1,0 +1,36 @@
+{
+  "_comment": "单价表，单位：USD / 百万 token。本文件是唯一需要跟着官方调价维护的地方 —— 官方改价时改这里，不用改代码。",
+  "_source": "2026-10 取自官方定价页 https://api-docs.deepseek.com/quick_start/pricing （官方未在此页标明价格生效日期，调价请以该页为准）。",
+  "_currencyNote": "官方定价页给的是美元价，所以这里 currency=USD、单价也是美元。若你想按人民币看，改 currency 并把单价按汇率换算即可（插件不做汇率换算，不猜汇率）。",
+  "offPeakRatio": 0.5,
+  "_offPeakRatio": "官方原文：off-peak rates are half of the peak rates。高峰时段 = 周一至周五 UTC 01:00–04:00 与 06:00–10:00（即北京时间 09:00–12:00 与 14:00–18:00），**不含中国法定节假日**；其余时间含周末与法定节假日全天均为谷价。",
+  "_holidayGap": "已知缺口：本插件不内置中国法定节假日表，因此调休/节假日期间会按工作日高峰价估算，偏高一点。需要精确请把 accounting.mjs 的 isPeak() 接上节假日数据源。",
+  "models": {
+    "deepseek-flash": {
+      "displayName": "DeepSeek-V4.1-Flash",
+      "currency": "USD",
+      "cacheHit": 0.003,
+      "cacheMiss": 0.15,
+      "output": 0.6,
+      "aliases": ["deepseek-v4-flash", "deepseek-v4-flash-vision-exp"],
+      "offPeakRatio": 0.5
+    },
+    "deepseek-v4-pro": {
+      "displayName": "DeepSeek-V4-Pro-0813",
+      "currency": "USD",
+      "cacheHit": 0.022,
+      "cacheMiss": 0.66,
+      "output": 1.98,
+      "aliases": ["deepseek-v4-pro-preview"],
+      "offPeakRatio": 0.5
+    }
+  },
+  "fallback": {
+    "_comment": "价格表里没有的模型 id 落到这里，避免 report_usage 直接失败；宁可估个偏高值也别静默记 0。用的是 V4 Pro 的高峰价。",
+    "currency": "USD",
+    "cacheHit": 0.022,
+    "cacheMiss": 0.66,
+    "output": 1.98,
+    "offPeakRatio": 0.5
+  }
+}
