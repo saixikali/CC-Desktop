@@ -3,6 +3,32 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-10-05
+
+### 修复：关闭主窗口后应用僵死、托盘点击无响应
+- 成员：`out/main/index.js`
+  - 改前 sha256：`3170bc1d57b9618e63fc9869c8bfd04f6fa0d3dc9e57ccf054140417584fa666`（131289 B）
+  - 改后 sha256：`580bf614b2ff4f516fd37f1623c9205a1a09722e2ea34171a8c375b97e29a291`（131529 B）
+  - 整包 sha256：`7f855256505713252d2a062900a00094777df72b3a1812a3532c13ba10b04a82`（p21 中间包；随后与渲染层修复合并部署）
+- 缺陷：「关闭窗口时最小化到托盘」关闭时，主窗 `closed` 只置空引用；桌宠辅助窗仍在，Electron 不触发 `window-all-closed`，进程僵留，托盘菜单再调 `mainWindow.show()` 作用在 null 上 → 点了没反应。修复：`closed` 中在非托盘模式显式 `app.quit()`
+- 验证：Win32 `WM_CLOSE` 主窗（1461×909，标题 "CC Desktop"）后进程 5→0、托盘消失；开关开启时 5→4 且桌宠 "CC Pet" 312×400 仍可见；node --check ✓；verify-asar 四重校验 ✓
+
+### 修复：命令执行请求卡片出现时不自动滚入视野
+- 成员：`out/renderer/assets/index-CnGZ3Eox.js`
+  - 改前 sha256：`bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02`（3080088 B）
+  - 改后 sha256：`740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c`（3081720 B）
+  - 中间态 sha256：`504db1b4…`（3080877 B，只改了 ThreadPane；发现对话气泡视图 BubbleList 有同款缺陷后补齐）
+  - 整包 sha256（含 p21 主进程修复，最终线上包）：`847f9fbcd7dcb8ca640ab3697e3214da42fae5c032caca9382b66215d7d1587b`
+- 缺陷：自动滚动 effect 只订阅 `turns/streaming`，审批卡片走独立事件总线（`approvalChanged` → approvals store），请求到达时若转录数据未同步变化就不滚动，高卡片落在视口外需手动下滑。修复：任务视图 ThreadPane 与对话气泡视图 BubbleList 均订阅 `pending.length`；新审批是阻塞操作，即使用户已上翻历史也强制滚到底并恢复跟随；rAF + 80ms 二次滚动兜住卡片 pop 动画/异步高度
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）
+- 端到端（CDP + `--inspect` 主进程经 `process.getBuiltinModule('module').createRequire` 取 electron，`webContents.send('cc:event', …)` 广播真实信封）：打开任务会话 → 注入 2200px 高内容并滚到顶（distance>4000，follow=false）→ 注入 pending 审批 → 卡片渲染、distance=0、「允许」按钮 622–650/683 完整可见 → granted 后卡片移除，PASS
+
+### 非 app.asar 成员：桌宠气泡漫画风 + 设置面板紧凑化
+- 外部运行时 `pet/live2d/styles.css`（不入 asar；公开仓库副本 `pet-live2d/styles.css`）
+  - 改前 sha256：`dc0d1fb5ea7c044a128a5a88dd013653ce0daad1647f3c4b4a375930bcba3e00`（6382 B）
+  - 改后 sha256：`ee8e3ba5b53b53e4001f645ca9a33f7125069983bb82518fb532335f69a810a1`（6744 B）
+- 内容：气泡改白底黑粗描边漫画对白框 + 硬边阴影 + 双层三角尾巴；左对齐左锚定（右侧留 52px 避让齿轮）；设置面板全面缩紧（inset/内边距/行距/控件高/字号）
+
 ## 2026-10-02
 
 ### 新增：桌宠支持图片形象（PNG/JPG/GIF/WebP/APNG）
@@ -352,9 +378,9 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-03「新增：桌宠支持图片形象（PNG/JPG/GIF/WebP/APNG）」） | `815699ff7db693244b85bb97c514cbb84d1f2fab552d12a5a4640a1d67c58a31` |
-| └ out/main/index.js（131289 B） | `3170bc1d57b9618e63fc9869c8bfd04f6fa0d3dc9e57ccf054140417584fa666` |
-| └ out/renderer/assets/index-CnGZ3Eox.js（3080088 B） | `bc227d46632d922b7225110f7794753ccc76fc73464315c5ab900bb3cec3ba02` |
+| **当前线上包**（截至 2026-10-05「修复：命令执行请求卡片出现时不自动滚入视野」，含同日关窗退出修复） | `847f9fbcd7dcb8ca640ab3697e3214da42fae5c032caca9382b66215d7d1587b` |
+| └ out/main/index.js（131529 B） | `580bf614b2ff4f516fd37f1623c9205a1a09722e2ea34171a8c375b97e29a291` |
+| └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
 ## 后续记账格式
