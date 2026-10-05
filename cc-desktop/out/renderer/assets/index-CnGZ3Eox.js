@@ -83097,6 +83097,8 @@ function ThreadPane() {
   const scrollRef = reactExports.useRef(null);
   const followRef = reactExports.useRef(true);
   const [showJump, setShowJump] = reactExports.useState(false);
+  const pendingCount = useApprovalsStore((s16) => s16.pending.length);
+  const prevPendingRef = reactExports.useRef(0);
   const scrollToBottom = reactExports.useCallback((smooth = false) => {
     const el2 = scrollRef.current;
     if (!el2) return;
@@ -83110,8 +83112,23 @@ function ThreadPane() {
     setShowJump(distance > 240);
   }, []);
   reactExports.useEffect(() => {
-    if (followRef.current) scrollToBottom();
-  }, [turns, streaming, scrollToBottom]);
+    // 新的审批请求（命令执行/文件修改）是阻塞操作，无论用户是否在底部跟随都强制滚入视野
+    const newApproval = pendingCount > prevPendingRef.current;
+    prevPendingRef.current = pendingCount;
+    if (!followRef.current && !newApproval) return;
+    if (newApproval) {
+      followRef.current = true;
+      setShowJump(false);
+    }
+    scrollToBottom();
+    // 卡片带 pop 动画且内容高度可能异步确定，补两次滚动确保最终位置正确
+    const raf = requestAnimationFrame(() => scrollToBottom());
+    const tm = setTimeout(() => scrollToBottom(), 80);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(tm);
+    };
+  }, [turns, streaming, pendingCount, scrollToBottom]);
   reactExports.useEffect(() => {
     followRef.current = true;
     setShowJump(false);
@@ -92300,6 +92317,8 @@ function ConversationRow({
 function BubbleList({ turns, streaming }) {
   const scrollRef = reactExports.useRef(null);
   const followRef = reactExports.useRef(true);
+  const pendingCount = useApprovalsStore((s16) => s16.pending.length);
+  const prevPendingRef = reactExports.useRef(0);
   const onScroll = reactExports.useCallback(() => {
     const el2 = scrollRef.current;
     if (!el2) return;
@@ -92307,8 +92326,27 @@ function BubbleList({ turns, streaming }) {
   }, []);
   reactExports.useEffect(() => {
     const el2 = scrollRef.current;
-    if (el2 && followRef.current) el2.scrollTo({ top: el2.scrollHeight });
-  }, [turns, streaming]);
+    if (!el2) return;
+    // 新审批请求是阻塞操作，即便用户已向上翻历史也强制滚入视野
+    const newApproval = pendingCount > prevPendingRef.current;
+    prevPendingRef.current = pendingCount;
+    if (!followRef.current && !newApproval) return;
+    if (newApproval) followRef.current = true;
+    el2.scrollTo({ top: el2.scrollHeight });
+    // 卡片带 pop 动画、高度异步确定，补两次滚动
+    const raf = requestAnimationFrame(() => {
+      const e = scrollRef.current;
+      if (e) e.scrollTo({ top: e.scrollHeight });
+    });
+    const tm = setTimeout(() => {
+      const e = scrollRef.current;
+      if (e) e.scrollTo({ top: e.scrollHeight });
+    }, 80);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(tm);
+    };
+  }, [turns, streaming, pendingCount]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: scrollRef, onScroll, className: "min-h-0 flex-1 overflow-y-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-6", children: [
     turns.map((turn) => /* @__PURE__ */ jsxRuntimeExports.jsx(TurnBubbles, { turn, streaming }, turn.id)),
     /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalCards, {})

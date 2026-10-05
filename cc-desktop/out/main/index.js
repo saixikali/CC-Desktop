@@ -3521,6 +3521,9 @@ if (gotLock) {
     });
     mainWindow.on("closed", () => {
       mainWindow = null;
+      // 未开"关闭最小化到托盘"时，主窗关闭 = 用户要退出；
+      // 此时 pet 等辅助窗还在会阻止 window-all-closed 退出，需要显式 quit
+      if (!isQuitting && !settings.get().closeToTray) app.quit();
     });
     const openPath = parseOpenArg(process.argv);
     if (openPath) {
