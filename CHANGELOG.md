@@ -23,6 +23,22 @@
 - 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）
 - 端到端（CDP + `--inspect` 主进程经 `process.getBuiltinModule('module').createRequire` 取 electron，`webContents.send('cc:event', …)` 广播真实信封）：打开任务会话 → 注入 2200px 高内容并滚到顶（distance>4000，follow=false）→ 注入 pending 审批 → 卡片渲染、distance=0、「允许」按钮 622–650/683 完整可见 → granted 后卡片移除，PASS
 
+### 修复 p23：插件运行时合并抛 `h is not defined`，MCP/hooks 全不注入
+- 成员：`out/main/index.js`
+  - 改前 sha256：`580bf614b2ff4f516fd37f1623c9205a1a09722e2ea34171a8c375b97e29a291`（131529 B）
+  - 改后 sha256：`1d23340167c1b540db89ad389228b2fc200794189f1c23cc4c29e106f7d6a21f`（131530 B）
+  - 整包 sha256：`87db28006135310f49def94decc707cd11f6d0c0afb3fb11949ef69d633e8b44`（p23 中间包，随后与 p24 合并部署）
+- 缺陷：`substHookEntry` 末尾 `.filter((h2) => h.command)` 回调参数名是 `h2`，却引用不存在的 `h` → `PluginService.runtime()` 每轮必抛 ReferenceError，ClaudeBackend catch 后只 warn 并不注入任何插件配置（MCP 与 hooks 同时失效），whale-balance Stop hook 因此从未执行。修复：改为 `h2.command`（1 字节）
+- 验证：应用日志复现多次 `runtime()` 失败；离线 Function 抽取运行时复现修复前后差异 ✓；node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；部署后日志不再报错
+
+### 修复 p24：Windows 下 hook 命令经 bash 执行，路径反斜杠被当转义符
+- 成员：`out/main/index.js`
+  - 改前 sha256：`1d23340167c1b540db89ad389228b2fc200794189f1c23cc4c29e106f7d6a21f`（131530 B）
+  - 改后 sha256：`f16b75a88a393e9bd50995b690eae9dfad903d526de2f01234fa3c22c8fccd6d`（131823 B）
+  - 整包 sha256（p23+p24 最终线上包）：`86308bda277fb8cfbbbf63a41296029d1572eb3084aee9192a9ddeff4c28991e`
+- 缺陷：p23 修好注入后 Stop hook 仍不执行。三层串联根因：①（p23）注入崩溃；② 插件 `plugin.json` 把 `timeout` 放在事件条目层，CLI hooks 的 zod schema 只接受 `{matcher?, hooks[]}`，校验失败时整条 `--settings` 被静默忽略；③ CLI v2.1.276 在 Windows 上用自带 `/usr/bin/bash` 执行 hook command（指纹探针实证 `$0=/usr/bin/bash`、`%COMSPEC%` 不展开），且 hook command 无法携带环境变量——无 `ELECTRON_RUN_AS_NODE=1` 时 `CC Desktop.exe hook-stop.mjs` 空跑 Electron GUI 壳（exit 0 但脚本不执行）；`${PLUGIN_DIR}` 替换出的 Windows 反斜杠路径在 bash 双引号里又是转义符。修复（本成员）：`substHookEntry` 对替换后的 command 在 win32 下 `replace(/\\/g,"/")`（MCP 走直接 spawn 不转换）；配套插件改动：新增 `hook-stop.sh`（内部 `export ELECTRON_RUN_AS_NODE=1` 后 exec exe）、`plugin.json` 改 CLI 标准 schema 并将 timeout 移入单个 hook 对象、command 改为 `bash "${PLUGIN_DIR}/hook-stop.sh"`
+- 验证：二分实验实证（无 env stdout 仅 `\r\n` 无 state；带 env 正常执行建 state）；node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；端到端（CDP bridge 同会话发两轮）：首轮锚基线 offset=145724 不计，轮次 2 自动入账 `turns 0→1`，字段完整（model `deepseek-v4-flash`、priceKey `deepseek-flash`、peak=false、cost BigDecimal、tokens cacheHit/cacheMiss/output、source=hook、callId、day），daily `2026-10-06` 汇总键建立，PASS
+
 ### 非 app.asar 成员：桌宠气泡漫画风 + 设置面板紧凑化
 - 外部运行时 `pet/live2d/styles.css`（不入 asar；公开仓库副本 `pet-live2d/styles.css`）
   - 改前 sha256：`dc0d1fb5ea7c044a128a5a88dd013653ce0daad1647f3c4b4a375930bcba3e00`（6382 B）
@@ -378,8 +394,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-05「修复：命令执行请求卡片出现时不自动滚入视野」，含同日关窗退出修复） | `847f9fbcd7dcb8ca640ab3697e3214da42fae5c032caca9382b66215d7d1587b` |
-| └ out/main/index.js（131529 B） | `580bf614b2ff4f516fd37f1623c9205a1a09722e2ea34171a8c375b97e29a291` |
+| **当前线上包**（截至 2026-10-06「修复 p24：Windows 下 hook 命令经 bash 执行，路径反斜杠被当转义符」） | `86308bda277fb8cfbbbf63a41296029d1572eb3084aee9192a9ddeff4c28991e` |
+| └ out/main/index.js（131823 B） | `f16b75a88a393e9bd50995b690eae9dfad903d526de2f01234fa3c22c8fccd6d` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 

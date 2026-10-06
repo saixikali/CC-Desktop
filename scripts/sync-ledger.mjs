@@ -27,18 +27,35 @@ if (anchorIdx < 0) {
   process.exit(1);
 }
 
-// 标签取最新补丁条目标题，跳过工具链/工程化这类非补丁小节
-const title =
-  lines
-    .filter((l) => l.startsWith('### '))
-    .map((l) => l.slice(4).trim())
-    .find((t) => !/工具链|工程化|非 app\.asar 成员/.test(t)) ?? '(未命名)';
+// 标签取与磁盘线上包同源的补丁条目：优先匹配正文中「整包 sha256」等于当前 pkgHash 的
+// 最后一个补丁标题（一天多补丁/回滚时也能指对；同一天多个中间包只有最终部署包会命中）。
+// 找不到再回退为第一个非工具链小节标题。
+const isPatchTitle = (t) => !/工具链|工程化|非 app\.asar 成员/.test(t);
+const headings = [];
+lines.forEach((l, i) => {
+  if (l.startsWith('### ')) headings.push({ t: l.slice(4).trim(), i });
+});
+// 小节正文在下一个任意级别标题（## 或 ###）处终止，文末「## 锚点哈希」才不会被并进上一个 ### 小节
+const bodyEnd = (i) => {
+  for (let j = i + 1; j < lines.length; j++) {
+    if (/^##+ /.test(lines[j])) return j;
+  }
+  return lines.length;
+};
 // 标签日期取**本地**日期：toISOString() 是 UTC，东八区凌晨会算成前一天（台账日期一律按本地）
 const now = new Date();
 const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
 const archive = readArchive(asarPath);
 const pkgHash = sha256(fs.readFileSync(asarPath));
+const titleFromHash = [...headings].reverse().find((h) => {
+  if (!isPatchTitle(h.t)) return false;
+  const end = bodyEnd(h.i);
+  const body = lines.slice(h.i, end).join('\n');
+  // 锚点小节正文也含整包哈希，但补丁条目用「整包 sha256」标记行，借此排除锚点表
+  return body.includes('整包 sha256') && body.includes(pkgHash);
+})?.t;
+const title = titleFromHash ?? headings.find((h) => isPatchTitle(h.t))?.t ?? '(未命名)';
 lines[anchorIdx] = `| **当前线上包**（截至 ${today}「${title}」） | \`${pkgHash}\` |`;
 
 const members = [];
