@@ -1,0 +1,17 @@
+# ── CC Desktop 应用整包与注入工作目录（52MB × 2，可由 apply 链重建，不入库）──
+app.asar.patched
+.apply-work/
+
+# ── 运行时产物 ──
+pet.log
+.run-err.txt
+pet-state.json
+
+# ── Live2D 官方样例模型（版权归属 Live2D Inc.，不入库；需自行从 Cubism SDK 获取）──
+live2d/models/Hiyori/
+live2d/models/Hiyori-2/
+live2d/models/texture_01/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
