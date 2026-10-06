@@ -1,11 +1,11 @@
-# CC Desktop 改后成员快照（**私有库，禁止推送到公开仓库**）
+# CC Desktop 改后成员快照（**独立库：二进制大文件不入公开仓库**）
 
-这里存的是从本机 `resources\app.asar` 抽出的**改后成员**（按 asar 内相对路径），属于第三方闭源应用的代码衍生物。
+这里存的是从本机 `resources\app.asar` 抽出的**改后成员**（按 asar 内相对路径），是本项目构建产物的衍生物（源码在 [`CC-Desktop`](https://github.com/saixikali/CC-Desktop) 的默认分支 `main`）。
 
 **因此它被刻意放在公开仓库之外：**
 
-- 公开仓库 [`CC-Desktop`](https://github.com/saixikali/CC-Desktop) 只放**自有内容** —— 补丁工具链（`scripts/`）、操作手册（`SKILL.md`）、补丁台账（`CHANGELOG.md`）、说明与许可；
-- 本目录是本机备份库，**不要**把它加进公开仓库，也**不要**给它配公开的 remote。
+- 公开仓库的 `master` 分支只放**工具链与台账** —— 补丁工具链（`scripts/`）、操作手册（`SKILL.md`）、补丁台账（`CHANGELOG.md`）、说明与许可；应用源码在默认分支 `main`；
+- 本目录是二进制快照库，**不要**把它加进公开仓库，也**不要**给它配公开的 remote —— 理由是体积（单成员 3 MB 起，每打一次补丁多一份）与内容重复，与版权无关。
 
 ## 为什么需要它
 
