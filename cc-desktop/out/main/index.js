@@ -771,8 +771,10 @@ class PluginService {
     out.hooks = entry.hooks.map((h2) => ({
       type: "command",
       ...h2,
-      command: pluginSubst(String(h2.command), base)
-    })).filter((h2) => h.command);
+      // CLI 在 Windows 上也经 bash 执行 hook 命令：反斜杠会被当成转义符，
+      // 必须把占位符替换后的路径统一成正斜杠（MCP 走直接 spawn，不受此限）。
+      command: process.platform === "win32" ? pluginSubst(String(h2.command), base).replace(/\\/g, "/") : pluginSubst(String(h2.command), base)
+    })).filter((h2) => h2.command);
     return out;
   }
   /** 合并所有已启用插件，返回可直接传给 SDK query 的 { mcpServers, settings } */
