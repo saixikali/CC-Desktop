@@ -118,7 +118,7 @@ function CommandCard({ a }: { a: PendingApproval }) {
         )}
       </header>
       <div className="px-3 py-2">
-        <pre className="select-text max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[#0d1117] p-2 font-mono text-[11px] text-[#c9d1d9]">
+        <pre className="select-text max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/20 p-2 font-mono text-[11px] text-text">
           {str(p.command) || "（未知命令）"}
         </pre>
         {str(p.cwd) && (

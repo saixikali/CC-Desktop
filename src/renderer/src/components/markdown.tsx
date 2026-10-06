@@ -88,7 +88,7 @@ export const Markdown = memo(function Markdown({
           },
           pre({ children }) {
             return (
-              <pre className="my-2 overflow-x-auto rounded-lg border border-border bg-[#0d1117] p-3">
+              <pre className="my-2 overflow-x-auto rounded-lg border border-border bg-black/20 p-3">
                 {children}
               </pre>
             );

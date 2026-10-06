@@ -13,7 +13,7 @@ import {
   Image as ImageIcon,
   ListTodo,
   Minimize2,
-  Terminal,
+  SquareTerminal,
   TriangleAlert,
   User,
   Wrench,
@@ -142,8 +142,8 @@ function Reasoning({ item }: { item: AnyItem }) {
   const text = [...summary, ...content].join("\n\n");
   if (!text) return null;
   return (
-    <div className="rounded-lg border border-border/60 bg-surface-2/60 px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-faint">
+    <div className="rounded-xl border border-border/60 bg-surface-2 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-muted">
         <BrainCircuit className="h-3.5 w-3.5" strokeWidth={1.7} />
         思考过程
       </div>
@@ -184,10 +184,10 @@ function CommandExecution({ item }: { item: AnyItem }) {
   const output = str(item.aggregatedOutput);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface-2">
-      <div className="flex items-center gap-2 border-b border-border/70 bg-surface-3/40 px-3 py-1.5">
-        <Terminal className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.7} />
-        <span className="select-text truncate font-mono text-[11.5px] text-text-muted">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface-2">
+      <div className="flex items-center gap-2 border-b border-border/70 bg-surface-3/40 px-3 py-2">
+        <SquareTerminal className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.7} />
+        <span className="select-text truncate font-mono text-[11.5px] text-text">
           {command}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[10px] text-text-faint">
@@ -214,7 +214,7 @@ function CommandExecution({ item }: { item: AnyItem }) {
             label={`输出（${output.split("\n").length} 行）`}
             defaultOpen={output.length <= 2000}
           >
-            <pre className="select-text max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[#0d1117] p-2.5 font-mono text-[11px] leading-relaxed text-[#c9d1d9]">
+            <pre className="select-text max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/20 p-2.5 font-mono text-[11px] leading-relaxed text-text">
               {output}
             </pre>
           </Collapsible>
@@ -229,7 +229,7 @@ function CommandExecution({ item }: { item: AnyItem }) {
 function DiffView({ diff }: { diff: string }) {
   const lines = useMemo(() => diff.split("\n"), [diff]);
   return (
-    <pre className="select-text overflow-x-auto rounded-md bg-[#0d1117] p-2.5 font-mono text-[11px] leading-[1.6]">
+    <pre className="select-text overflow-x-auto rounded-md bg-black/20 p-2.5 font-mono text-[11px] leading-[1.6]">
       {lines.map((line, i) => {
         const add = line.startsWith("+") && !line.startsWith("+++");
         const del = line.startsWith("-") && !line.startsWith("---");
@@ -324,13 +324,13 @@ function McpToolCall({ item }: { item: AnyItem }) {
   const errorText = error ? str(error.message) || JSON.stringify(error, null, 2) : "";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface-2">
-      <div className="flex items-center gap-2 border-b border-border/70 bg-surface-3/40 px-3 py-1.5">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface-2">
+      <div className="flex items-center gap-2 border-b border-border/70 bg-surface-3/40 px-3 py-2">
         <Wrench className="h-3.5 w-3.5 shrink-0 text-text-muted" strokeWidth={1.7} />
         <span className="select-text truncate text-[11.5px] text-text-muted">
-          <span className="font-medium">{server}</span>
+          <span className="text-text-faint">{server}</span>
           <span className="text-text-faint"> / </span>
-          {tool}
+          <span className="font-medium text-text">{tool}</span>
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-1.5">
           {typeof item.durationMs === "number" && (
@@ -353,14 +353,14 @@ function McpToolCall({ item }: { item: AnyItem }) {
         )}
         {args && (
           <Collapsible label="参数">
-            <pre className="select-text max-h-48 overflow-auto rounded-md bg-[#0d1117] p-2.5 font-mono text-[11px] text-[#c9d1d9]">
+            <pre className="select-text max-h-48 overflow-auto rounded-md bg-black/20 p-2.5 font-mono text-[11px] text-text">
               {args}
             </pre>
           </Collapsible>
         )}
         {resultText && (
           <Collapsible label="结果">
-            <pre className="select-text max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[#0d1117] p-2.5 font-mono text-[11px] text-[#c9d1d9]">
+            <pre className="select-text max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-black/20 p-2.5 font-mono text-[11px] text-text">
               {resultText}
             </pre>
           </Collapsible>
@@ -395,7 +395,7 @@ function GenericItem({ item }: { item: AnyItem }) {
     str(item.name) ||
     (typeof item.review === "string" ? item.review : "");
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-[11px] text-text-faint">
+    <div className="flex items-center gap-2 rounded-xl border border-border/60 px-3 py-1.5 text-[11px] text-text-faint">
       {ICONS[type] ?? <Wrench className="h-3.5 w-3.5" strokeWidth={1.7} />}
       <span className="shrink-0">{type}</span>
       {detail && <span className="select-text truncate font-mono">{detail}</span>}
