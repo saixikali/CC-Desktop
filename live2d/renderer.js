@@ -270,9 +270,26 @@
   });
 
   /* ============ 气泡 ============ */
-  function showBubble(text, ms) {
-    if (!cfg || cfg.bubbles === false) return;
+  async function showBubble(text, ms, force) {
+    // force=true 用于用户主动操作（右键查看余额）：无视"气泡全局开关"也要显示
+    if (!force && (!cfg || cfg.bubbles === false)) return;
+    const multi = /\n/.test(text);
+    // 多行气泡（余额）：模型居中且占满窗宽，窗内放气泡必遮脸。
+    // 先让主进程向屏幕空间足的一侧临时扩展窗口（模型区 CSS 保持原宽，模型不动），
+    // 气泡落在新区；空间不足（ok=false）退回窗内窄条。
+    document.body.classList.remove("bub-R", "bub-L");
+    document.body.style.removeProperty("--bub-extra");
+    if (multi) {
+      try {
+        const r = await window.pet.bubbleBounds(true);
+        if (r && r.ok && r.side) {
+          document.body.style.setProperty("--bub-extra", `${r.extra}px`);
+          document.body.classList.add(r.side === "R" ? "bub-R" : "bub-L");
+        }
+      } catch { /* 退回窗内窄条 */ }
+    }
     bubbleText.textContent = text;
+    bubbleEl.classList.toggle("bubble-multi", multi);
     bubbleEl.classList.remove("bubble-hidden");
     clearTimeout(bubbleTimer);
     const t = ms ?? (cfg.bubbleDuration || 6) * 1000;
@@ -282,10 +299,64 @@
   function hideBubble() {
     bubbleEl.classList.add("bubble-hidden");
     clearTimeout(bubbleTimer);
+    if (document.body.classList.contains("bub-R") || document.body.classList.contains("bub-L")) {
+      document.body.classList.remove("bub-R", "bub-L");
+      document.body.style.removeProperty("--bub-extra");
+      try { window.pet.bubbleBounds(false); } catch { /* noop */ }
+    }
   }
   bubbleEl.addEventListener("click", () => {
     if (cfg.bubbleClickDismiss !== false) hideBubble();
   });
+
+  /* ============ 余额气泡（数据口径与 pet/ledger_data.py 一致） ============ */
+  const fmtMoney = (v, digits = 2) =>
+    v === null || v === undefined ? "—"
+      : Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  function fmtAge(seconds) {
+    if (seconds === null || seconds === undefined) return "";
+    if (seconds < 60) return "刚刚";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
+    return `${Math.floor(seconds / 86400)} 天前`;
+  }
+  function fmtCountdown(seconds) {
+    if (seconds === null || seconds === undefined || seconds < 0) return "—";
+    seconds = Math.floor(seconds);
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h) return `${h}h${String(m).padStart(2, "0")}m`;
+    if (m) return `${m}m${String(s).padStart(2, "0")}s`;
+    return `${s}s`;
+  }
+  const CURRENCY_SYMBOL = { CNY: "¥", USD: "$" };
+  function balanceLines(snap) {
+    if (!snap.ok) return [snap.note || "暂无数据"];
+    const lines = [];
+    const sym = CURRENCY_SYMBOL[snap.currency] || (snap.currency ? `${snap.currency} ` : "");
+    if (snap.balance !== null) {
+      lines.push(`余额 ${sym}${fmtMoney(snap.balance)}`);
+      const tail = [];
+      const age = fmtAge(snap.balanceAge);
+      if (age) tail.push(age);
+      if (snap.balanceDelta !== null) {
+        const sign = snap.balanceDelta > 0 ? "+" : "−";
+        tail.push(`${sign}${fmtMoney(Math.abs(snap.balanceDelta), 4)}`);
+      }
+      if (tail.length) lines.push(tail.join(" · "));
+    } else {
+      lines.push("还没有余额记录");
+      lines.push("（问一次「余额还有多少」）");
+    }
+    lines.push(snap.todayTurns
+      ? `今日 ${fmtMoney(snap.todayUsed, 4)} · ${snap.todayTurns}轮`
+      : `今日 ${fmtMoney(snap.todayUsed, 4)}`);
+    if (snap.peak) {
+      lines.push(`${snap.peak.label} ${fmtCountdown(snap.peak.nextChange)}→${snap.peak.nextLabel}`);
+    }
+    return lines;
+  }
 
   /* ============ 音效（WebAudio 合成，无需素材） ============ */
   function beep(freqs, dur = 0.16) {
@@ -388,6 +459,7 @@
     if (pointerDown && !dragging &&
         Math.abs(e.screenX - dragStart.x) + Math.abs(e.screenY - dragStart.y) > 4) {
       dragging = true;
+      hideBubble(); // 余额气泡会临时扩展窗口，开拖前必须还原，否则拖拽起点偏移
     }
     if (dragging) window.pet.drag("move", e.screenX, e.screenY);
     applyPointerPolicy();
@@ -430,10 +502,21 @@
     const act = e.target?.dataset?.act;
     ctxMenu.classList.add("hidden");
     if (act === "settings") openPanel();
-    else if (act === "hide") window.pet.hide();
+    else if (act === "hide") { hideBubble(); window.pet.hide(); }
     else if (act === "flip") {
       cfg = await window.pet.setConfig({ facing: -(cfg.facing || 1) });
       applyFacing(cfg.facing);
+    } else if (act === "balance") {
+      // 只读本地账本（插件 whale-balance 维护），即时显示
+      const snap = await window.pet.balance(false);
+      showBubble(balanceLines(snap).join("\n"), 10000, true);
+    } else if (act === "refresh") {
+      // 走插件 MCP 联网查余额（凭据查找/计价/写账本全在插件侧）
+      showBubble("正在查询余额…", 45000, true);
+      const snap = await window.pet.balance(true);
+      const lines = balanceLines(snap);
+      if (snap.refresh && !snap.refresh.ok) lines.push(`（${snap.refresh.note || "刷新失败"}）`);
+      showBubble(lines.join("\n"), 10000, true);
     }
   });
 
@@ -461,6 +544,7 @@
   };
 
   async function openPanel() {
+    hideBubble(); // 余额气泡的临时窗口扩展必须先还原，面板要自己 setBounds
     panel.classList.remove("panel-hidden");
     $("#panel-res").classList.add("hidden");
     $("#panel-main").classList.remove("hidden");

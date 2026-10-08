@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("pet", {
   deleteModel: (id) => ipcRenderer.invoke("pet:delete-model", id),
   openModelsDir: () => ipcRenderer.invoke("pet:open-models-dir"),
   drag: (phase, x, y) => ipcRenderer.invoke("pet:drag", { phase, x, y }),
+  balance: (refresh) => ipcRenderer.invoke("pet:balance", { refresh: !!refresh }),
+  bubbleBounds: (open) => ipcRenderer.invoke("pet:bubble-bounds", { open: !!open }),
   setIgnore: (ignore) => ipcRenderer.send("pet:set-ignore", ignore),
   hide: () => ipcRenderer.invoke("pet:hide"),
   onEvent: (cb) => {
