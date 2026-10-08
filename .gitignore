@@ -6,6 +6,7 @@ app.asar.patched
 pet.log
 .run-err.txt
 pet-state.json
+.frames-cache.bin
 
 # ── Live2D 官方样例模型（版权归属 Live2D Inc.，不入库；需自行从 Cubism SDK 获取）──
 live2d/models/Hiyori/
