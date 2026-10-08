@@ -5,13 +5,14 @@
 
 ## 2026-10-08
 
-### 修复 p25：跨 DPI 显示器拖动桌宠时模型视觉变大
+### 修复 p25+p26：跨 DPI 显示器拖动桌宠时模型视觉变大
 - 成员：`out/main/index.js`
   - 改前 sha256：`f16b75a88a393e9bd50995b690eae9dfad903d526de2f01234fa3c22c8fccd6d`（131823 B）
-  - 改后 sha256：`30253a7cb02a3a518a2d7c9a5dd2c46369e04334091cf19ac1fa64406553b01b`（132763 B）
+  - 改后 sha256：`30253a7cb02a3a518a2d7c9a5dd2c46369e04334091cf19ac1fa64406553b01b`（132562 B）
   - 整包 sha256：`a5a0fb1ef9dee52ab7e13a70409218f70f1206b84c1d292fbda09d63add112b1`
 - 缺陷：Windows 跨 DPI 拖动窗口时系统自动按新 DPR 缩放窗口像素尺寸，但 PIXI canvas 的 `resolution` 固定为启动时 DPR，画布被拉伸 → 模型视觉变大/变小。
-- 修复：`PetManager.show()` 中监听 `win.on("moved")`，用 `screen.getDisplayMatching(b)` 检测 `scaleFactor` 变化，发现即调用 `petSize()` 把窗口尺寸 reset 回应有 CSS 尺寸（`win.setBounds`），画布物理像素随之稳定。面板打开时不干预。
+- p25 尝试（无效）：监听 `win.on("moved")`——但该事件只在系统标题栏拖动时触发，桌宠拖动是 renderer 层 IPC → 主进程 `setPosition`，不产生 `moved` 事件。
+- p26 修复（有效）：在 `drag` 的 `move` 分支里检测鼠标所在显示器的 `scaleFactor` 是否变化（跨屏），变化时调用 `petSize()` 把窗口尺寸 reset 回应有 CSS 尺寸，阻断 Windows 自动拉伸。拖拽起点记录 `_dragScaleFactor`。
 - 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；smoke-test 行为层全绿 ✓
 
 ## 2026-10-05
@@ -406,8 +407,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-08「修复 p25：跨 DPI 显示器拖动桌宠时模型视觉变大」） | `a5a0fb1ef9dee52ab7e13a70409218f70f1206b84c1d292fbda09d63add112b1` |
-| └ out/main/index.js（132763 B） | `30253a7c84f2af92f0c39eca3f5b3df01065331ccfd18cfe3d3efae191eb7c49` |
+| **当前线上包**（截至 2026-10-08「修复 p25+p26：跨 DPI 显示器拖动桌宠时模型视觉变大」） | `af64a67b45747825ab0453e300fd4948bc1777c58bc4aa45f110e79e4f023091` |
+| └ out/main/index.js（132562 B） | `b3a7ddb83bf60c820939567b905f93cd0b64224ca32ca18f2d690368360e23d5` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
