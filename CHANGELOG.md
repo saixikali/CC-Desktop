@@ -5,6 +5,17 @@
 
 ## 2026-10-09
 
+### 修复 p29：桌宠「刷新余额（联网）」恢复——直接 spawn 插件时补齐凭据 env 注入
+- 成员：`out/main/index.js`（141313 B → 143148 B）；磁盘文件 `pet/live2d/renderer.js`
+- 现象：右键「刷新余额（联网）」报 `whale-balance 出错：没有找到 DEEPSEEK_API_KEY`。
+- 根因：key 实际在 `~/.claude/settings.json` 的 env 块（`ANTHROPIC_AUTH_TOKEN` + BASE_URL 指向 deepseek）；插件 resolveApiKey 第 2 路径只认 process.env。Claude Code 正常托管 MCP 插件时会把该 env 注入子进程，而桌宠菜单是主进程直接 spawn server.mjs、缺这层注入。
+- 修复：
+  1. 新增 `PetManager._claudeCredentialEnv()`：spawn 前读 `~/.claude/settings.json` env 块，只透传 4 个凭据键（DEEPSEEK_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL），复刻 Claude Code 注入，不扩大暴露面。
+  2. MCP 响应解析从字符串切片改为逐行 JSON.parse：修掉错误文案里 JSON 转义 `\n` 被原样显示的问题；错误文案截断前三行/200 字。
+  3. renderer 错误提示不再裹全角括号。
+- 端到端实测（脚本从文件读凭据经 env 块传，无命令行凭据暴露）：isError=false，真实查到余额 42.14→39.90 CNY、消费 2.24，账本写入新观测点 ✅
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；smoke-test 全绿 ✓
+
 ### 功能 p28：余额对白框移到角色头顶上方（纯文本小气泡）
 - 成员：`out/main/index.js`（141692 B → 141313 B）；磁盘文件 `pet/live2d/styles.css`、`renderer.js`
 - 迭代过程：p27 余额气泡向窗口左右两侧扩展 148px → 用户反馈位置不对；中间试过思想云朵外观与头顶+左右 120×152 大扩展 → 用户明确"样式不要改、框太大"。
@@ -432,8 +443,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-09「功能 p28：余额对白框移到角色头顶上方（纯文本小气泡）」） | `dfd15cd2e5b7320ce6b7e3b230289396c14200b89e8c6f7a63693cd59bf7bba6` |
-| └ out/main/index.js（141313 B） | `53e52b22d7f8a1eadcbc18765c03b7ad94b67efe5f25a464885b534057451db5` |
+| **当前线上包**（截至 2026-10-09「修复 p29：桌宠「刷新余额（联网）」恢复——直接 spawn 插件时补齐凭据 env 注入」） | `96a69191ba4051174843d69508949c71cb8dcc130776c9519cacdc8356608c6f` |
+| └ out/main/index.js（143148 B） | `7b691eb8e14980f55a302e9ad4420f47d97feb000041dccffabe004fef0d618d` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
