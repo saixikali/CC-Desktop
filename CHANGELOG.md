@@ -3,6 +3,21 @@
 每次补丁追加一条：日期、成员、摘要、改前/改后 sha256（成员级）、验证方式。
 台账建立前（2026-09-20 ~ 2026-09-24 早期）的补丁未保留逐步哈希，只按会话记录摘要；锚点哈希见文末。
 
+## 2026-10-09
+
+### 功能 p27：Live2D 桌宠右键菜单加回「查看余额 / 刷新余额（联网）」
+- 成员：`out/main/index.js`（132204 B → 141692 B）；磁盘文件 `pet/live2d/`：`preload.cjs`、`index.html`、`renderer.js`、`styles.css`（不进 asar，重启即生效，无哈希台账）
+- 背景：余额泡泡此前只有 tkinter 鲸鱼桌宠（pet.py + ledger_data.py）有，Live2D 桌宠右键菜单只有设置/翻转/隐藏。
+- 主进程新增 `pet:balance` IPC（PetManager）：
+  - 只读 `<安装根>/plugins-state.whale-balance.json`（插件维护，桌宠不写），解析余额/北京日切今日花费与轮数；金额 1e-8 定点口径与峰谷规则（工作日 09-12/14-18 高峰，含周末全天谷价、切换倒计时）与 `pet/ledger_data.py` 完全一致。
+  - 联网刷新：spawn `CC Desktop.exe + ELECTRON_RUN_AS_NODE=1` 跑 `plugins/whale-balance/server.mjs`，stdin 发一次 MCP `tools/call get_balance`（凭据查找/API/写账本全部复用插件，不造第二真相源）；detached+unref+finish 时 kill，避免子进程拖住应用退出。40s 超时，防重入。
+  - 渲染层：右键菜单两项，余额走已有 `#bubble` 多行显示（`white-space: pre-line`），显式查看无视"气泡全局开关"（showBubble force 参数）。
+- 多行气泡遮脸问题（实测模型居中且占满窗宽，窗内任何气泡布局都遮脸）：
+  - 新增 `pet:bubble-bounds` IPC：多行气泡显示时窗口向屏幕空间更足的一侧临时扩展 148px（记录原 bounds，关闭时精确还原；余量不足 96px 放弃扩展）。
+  - renderer 扩展态给 body 加 `bub-R/bub-L` + `--bub-extra` CSS 变量；`#canvas-wrap` 固定为原窗宽贴侧（PIXI resize 后模型屏幕位置不动），气泡落在扩展新区；拖拽开始/开面板/隐藏桌宠时强制还原。
+  - 主进程 `hide()` 兜底还原扩展 bounds。
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；smoke-test 全绿 ✓；纯 Node 复算账本：42.14 CNY / 周五谷价 / 今日 0 轮 ✓
+
 ## 2026-10-08
 
 ### 修复 p25+p26：跨 DPI 显示器拖动桌宠时模型视觉变大（待实测确认）
@@ -13,15 +28,6 @@
 - p26 尝试（用户反馈仍变大）：在 `drag` 的 `move` 分支检测 `scaleFactor` 变化即 reset。
 - 当前版本（end 检测）：不再检测 scaleFactor，改为拖拽 `end` 时直接比对窗口实际 bounds 与 `petSize()`，偏离即 `setBounds` reset 回 CSS 尺寸。**待用户跨屏实测确认**。
 - 验证：node --check ✓；verify-asar 四重校验 ✓；smoke-test 行为层全绿 ✓
-
-### 功能 p27：Live2D 桌宠右键菜单加回「查看余额 / 刷新余额（联网）」
-- 成员：`out/main/index.js`（132204 B → 139190 B）；磁盘文件 `pet/live2d/`：`preload.cjs`、`index.html`、`renderer.js`、`styles.css`（不进 asar，重启即生效，无哈希台账）
-- 背景：余额泡泡此前只有 tkinter 鲸鱼桌宠（pet.py + ledger_data.py）有，Live2D 桌宠右键菜单只有设置/翻转/隐藏。
-- 主进程新增 `pet:balance` IPC（PetManager）：
-  - 只读 `<安装根>/plugins-state.whale-balance.json`（插件维护，桌宠不写），解析余额/北京日切今日花费与轮数；金额 1e-8 定点口径与峰谷规则（工作日 09-12/14-18 高峰，含周末全天谷价、切换倒计时）与 `pet/ledger_data.py` 完全一致。
-  - 联网刷新：spawn `CC Desktop.exe + ELECTRON_RUN_AS_NODE=1` 跑 `plugins/whale-balance/server.mjs`，stdin 发一次 MCP `tools/call get_balance`（凭据查找/API/写账本全部复用插件，不造第二真相源）；detached+unref+finish 时 kill，避免子进程拖住应用退出。40s 超时，防重入。
-  - 渲染层：右键菜单两项，余额走已有 `#bubble` 多行显示（`white-space: pre-line`），显式查看无视"气泡全局开关"（showBubble force 参数）。
-- 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190）；smoke-test 全绿 ✓；纯 Node 复算账本：42.14 CNY / 周五谷价 / 今日 0 轮 ✓
 
 ## 2026-10-05
 
@@ -415,8 +421,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-09「修复 p25+p26：跨 DPI 显示器拖动桌宠时模型视觉变大（待实测确认）」） | `165fae43040c2506303c4e0a82c42b33adfab61f822aaf2c254d35055e03cf29` |
-| └ out/main/index.js（139199 B） | `d08af6b06495e1218044472856b008956f1f5c07ca2bb2fae6e12c9caeb91ef5` |
+| **当前线上包**（截至 2026-10-09「功能 p27：Live2D 桌宠右键菜单加回「查看余额 / 刷新余额（联网）」」） | `00c9b155d06923b122e8202c7677748ab6f31c44ce09803b62ba8e490632890d` |
+| └ out/main/index.js（141692 B） | `f3cd10853c62f3e45a017eaf1c4a4039e7918c8e9f9e0bb4f3f3ebd8fe2247d7` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
