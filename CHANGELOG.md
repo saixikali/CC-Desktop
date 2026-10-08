@@ -5,6 +5,17 @@
 
 ## 2026-10-09
 
+### 功能 p28：余额对白框移到角色头顶上方（纯文本小气泡）
+- 成员：`out/main/index.js`（141692 B → 141313 B）；磁盘文件 `pet/live2d/styles.css`、`renderer.js`
+- 迭代过程：p27 余额气泡向窗口左右两侧扩展 148px → 用户反馈位置不对；中间试过思想云朵外观与头顶+左右 120×152 大扩展 → 用户明确"样式不要改、框太大"。
+- 最终形态：
+  - 气泡外观始终保持原始对白框样式（白底/2px 深色描边/圆角 16/双层三角尾巴）。
+  - 余额内容恢复为 11px 纯文本多行（余额/观测时间/今日花费轮数/峰谷倒计时），无富文本大排版。
+  - `pet:bubble-bounds` 只把窗口向【正上方】扩 104px（容纳 4 行小字），不再水平扩展；模型钉在底部原宽原位，尾巴居中指向她；头顶空间 <80px 放弃扩展退回窗内窄条。
+  - renderer 扩展类单一 `bub-UC` + `--bub-h`；富文本 innerHTML 支持已撤回，全部走 textContent。
+- 教训：`Select-Object -First 1` 会提前关闭管道把 patch-asar 进程在落盘前杀掉（打印先于写文件），产出表面"已写出"实则旧内容的包；对补丁脚本不要用 -First 截断，用 -Last 或不接管道。
+- 验证：node --check ✓；verify-asar 四重校验 ✓（7897/2/190，用 patched2 安装）；smoke-test 全绿 ✓
+
 ### 功能 p27：Live2D 桌宠右键菜单加回「查看余额 / 刷新余额（联网）」
 - 成员：`out/main/index.js`（132204 B → 141692 B）；磁盘文件 `pet/live2d/`：`preload.cjs`、`index.html`、`renderer.js`、`styles.css`（不进 asar，重启即生效，无哈希台账）
 - 背景：余额泡泡此前只有 tkinter 鲸鱼桌宠（pet.py + ledger_data.py）有，Live2D 桌宠右键菜单只有设置/翻转/隐藏。
@@ -421,8 +432,8 @@
 | 里程碑快照（截至 2026-09-24 #23） | `cb5a19c0df5ddc1ab09694e1e8f9cdd21a0ef47c1fddc4b29f15eb04d663b7f7` |
 | └ out/main/index.js（104880 B） | `852fb992a9b1e390c38a2938f42d33a4549943f66285d736cbcc96a170b3fa94` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3058166 B） | `d72d2596762eee5711b4e717078468bf593dca8f0688c9563506c1560b4dbc8d` |
-| **当前线上包**（截至 2026-10-09「功能 p27：Live2D 桌宠右键菜单加回「查看余额 / 刷新余额（联网）」」） | `00c9b155d06923b122e8202c7677748ab6f31c44ce09803b62ba8e490632890d` |
-| └ out/main/index.js（141692 B） | `f3cd10853c62f3e45a017eaf1c4a4039e7918c8e9f9e0bb4f3f3ebd8fe2247d7` |
+| **当前线上包**（截至 2026-10-09「功能 p28：余额对白框移到角色头顶上方（纯文本小气泡）」） | `dfd15cd2e5b7320ce6b7e3b230289396c14200b89e8c6f7a63693cd59bf7bba6` |
+| └ out/main/index.js（141313 B） | `53e52b22d7f8a1eadcbc18765c03b7ad94b67efe5f25a464885b534057451db5` |
 | └ out/renderer/assets/index-CnGZ3Eox.js（3081720 B） | `740e1b46de5b28e5cc227cff828f97f79b8cf39b1f33a104bf062ef0e38e629c` |
 | └ out/renderer/assets/index-fIxHbQTX.css（64394 B） | `e2f566fba0af73a18991146df43ad9a5a9de71838229101034e416589bc796d6` |
 
