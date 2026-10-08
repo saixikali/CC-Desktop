@@ -269,25 +269,36 @@
     if (currentKind === "image") relayoutImage();
   });
 
-  /* ============ 气泡 ============ */
+  /* ============ 气泡（对白框） ============
+   * 多行气泡（余额）让主进程把窗口临时向她【头顶上方】扩一小条；
+   * 已是扩展态时再刷多行内容直接复用，避免联网刷新时窗口缩回再弹出抖动。 */
+  function bubbleExpanded() {
+    return document.body.classList.contains("bub-UC");
+  }
+  function collapseBubble() {
+    if (bubbleExpanded()) {
+      document.body.classList.remove("bub-UC");
+      document.body.style.removeProperty("--bub-h");
+      try { window.pet.bubbleBounds(false); } catch { /* noop */ }
+    }
+  }
   async function showBubble(text, ms, force) {
     // force=true 用于用户主动操作（右键查看余额）：无视"气泡全局开关"也要显示
     if (!force && (!cfg || cfg.bubbles === false)) return;
     const multi = /\n/.test(text);
-    // 多行气泡（余额）：模型居中且占满窗宽，窗内放气泡必遮脸。
-    // 先让主进程向屏幕空间足的一侧临时扩展窗口（模型区 CSS 保持原宽，模型不动），
-    // 气泡落在新区；空间不足（ok=false）退回窗内窄条。
-    document.body.classList.remove("bub-R", "bub-L");
-    document.body.style.removeProperty("--bub-extra");
-    if (multi) {
+
+    if (multi && !bubbleExpanded()) {
       try {
         const r = await window.pet.bubbleBounds(true);
         if (r && r.ok && r.side) {
-          document.body.style.setProperty("--bub-extra", `${r.extra}px`);
-          document.body.classList.add(r.side === "R" ? "bub-R" : "bub-L");
+          document.body.style.setProperty("--bub-h", `${r.h || 0}px`);
+          document.body.classList.add("bub-UC");
         }
       } catch { /* 退回窗内窄条 */ }
+    } else if (!multi && bubbleExpanded()) {
+      collapseBubble();
     }
+
     bubbleText.textContent = text;
     bubbleEl.classList.toggle("bubble-multi", multi);
     bubbleEl.classList.remove("bubble-hidden");
@@ -299,20 +310,25 @@
   function hideBubble() {
     bubbleEl.classList.add("bubble-hidden");
     clearTimeout(bubbleTimer);
-    if (document.body.classList.contains("bub-R") || document.body.classList.contains("bub-L")) {
-      document.body.classList.remove("bub-R", "bub-L");
-      document.body.style.removeProperty("--bub-extra");
-      try { window.pet.bubbleBounds(false); } catch { /* noop */ }
-    }
+    collapseBubble();
   }
   bubbleEl.addEventListener("click", () => {
     if (cfg.bubbleClickDismiss !== false) hideBubble();
   });
 
-  /* ============ 余额气泡（数据口径与 pet/ledger_data.py 一致） ============ */
-  const fmtMoney = (v, digits = 2) =>
-    v === null || v === undefined ? "—"
-      : Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  /* ============ 余额气泡（纯文本小对白框；数据口径与 pet/ledger_data.py 一致） ============ */
+  const CURRENCY_SYMBOL = { CNY: "¥", USD: "$" };
+  function fmtMoney(v, digits = 2) {
+    if (v === null || v === undefined) return "—";
+    return Number(v).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  }
+  // 大额两位小数，小额（API 零头花费）四位，避免 0.0031 显示成 ¥0.00
+  function fmtMoneySmart(v) {
+    if (v === null || v === undefined) return "—";
+    const n = Number(v);
+    if (!n) return "0.00";
+    return fmtMoney(n, n >= 1 ? 2 : 4);
+  }
   function fmtAge(seconds) {
     if (seconds === null || seconds === undefined) return "";
     if (seconds < 60) return "刚刚";
@@ -320,23 +336,19 @@
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`;
     return `${Math.floor(seconds / 86400)} 天前`;
   }
-  function fmtCountdown(seconds) {
-    if (seconds === null || seconds === undefined || seconds < 0) return "—";
-    seconds = Math.floor(seconds);
+  function fmtHMS(seconds) {
+    seconds = Math.max(0, Math.floor(seconds || 0));
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
-    if (h) return `${h}h${String(m).padStart(2, "0")}m`;
-    if (m) return `${m}m${String(s).padStart(2, "0")}s`;
-    return `${s}s`;
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   }
-  const CURRENCY_SYMBOL = { CNY: "¥", USD: "$" };
-  function balanceLines(snap) {
+  function balanceLines(snap, refreshing) {
     if (!snap.ok) return [snap.note || "暂无数据"];
+    const sym = CURRENCY_SYMBOL[snap.currency] || (snap.currency ? `${snap.currency} ` : "¥");
     const lines = [];
-    const sym = CURRENCY_SYMBOL[snap.currency] || (snap.currency ? `${snap.currency} ` : "");
     if (snap.balance !== null) {
-      lines.push(`余额 ${sym}${fmtMoney(snap.balance)}`);
+      lines.push(`余额 ${sym}${fmtMoneySmart(snap.balance)}`);
       const tail = [];
       const age = fmtAge(snap.balanceAge);
       if (age) tail.push(age);
@@ -347,14 +359,14 @@
       if (tail.length) lines.push(tail.join(" · "));
     } else {
       lines.push("还没有余额记录");
-      lines.push("（问一次「余额还有多少」）");
     }
     lines.push(snap.todayTurns
-      ? `今日 ${fmtMoney(snap.todayUsed, 4)} · ${snap.todayTurns}轮`
-      : `今日 ${fmtMoney(snap.todayUsed, 4)}`);
+      ? `今日 ${sym}${fmtMoneySmart(snap.todayUsed)} · ${snap.todayTurns}轮`
+      : `今日 ${sym}${fmtMoneySmart(snap.todayUsed)}`);
     if (snap.peak) {
-      lines.push(`${snap.peak.label} ${fmtCountdown(snap.peak.nextChange)}→${snap.peak.nextLabel}`);
+      lines.push(`${snap.peak.isPeak ? "峰" : "谷"} ${fmtHMS(snap.peak.nextChange)}→${snap.peak.nextLabel}`);
     }
+    if (refreshing) lines.push("正在联网刷新…");
     return lines;
   }
 
@@ -511,12 +523,15 @@
       const snap = await window.pet.balance(false);
       showBubble(balanceLines(snap).join("\n"), 10000, true);
     } else if (act === "refresh") {
-      // 走插件 MCP 联网查余额（凭据查找/计价/写账本全在插件侧）
-      showBubble("正在查询余额…", 45000, true);
+      // 走插件 MCP 联网查余额（凭据查找/计价/写账本全在插件侧）。
+      // 先弹本地账本小气泡（窗口完成头顶扩展），加一行"正在联网刷新…"，
+      // 结果回来后原地更新——扩展不缩回，模型不动。
+      const first = await window.pet.balance(false);
+      showBubble(balanceLines(first, true).join("\n"), 45000, true);
       const snap = await window.pet.balance(true);
       const lines = balanceLines(snap);
-      if (snap.refresh && !snap.refresh.ok) lines.push(`（${snap.refresh.note || "刷新失败"}）`);
-      showBubble(lines.join("\n"), 10000, true);
+      if (snap.refresh && !snap.refresh.ok) lines.push(snap.refresh.note || "刷新失败");
+      showBubble(lines.join("\n"), 12000, true);
     }
   });
 

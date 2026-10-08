@@ -30,7 +30,10 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
   100% { transform: translate(-50%, -50%) scale(1, 1); }
 }
 
-/* ===== 气泡（漫画对白框：白底黑描边 + 指向角色的尾巴，锚左侧方便阅读）===== */
+/* ===== 气泡（原始漫画对白框：白底黑描边 + 指向角色的尾巴）=====
+ * 单行台词：窗口顶部横条，尾巴在底边右侧指向模型。
+ * 多行余额：主进程把窗口临时向【头顶上方】扩展（body.bub-UL/UR/UC），
+ *           模型钉在底部原宽原位，气泡落在头顶新区，尾巴向下指向她。 */
 #bubble {
   position: absolute; top: 6px; left: 4px; right: 52px; z-index: 10;
   max-width: none; padding: 9px 12px; border-radius: 16px;
@@ -40,9 +43,9 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
   box-shadow: 3px 3px 0 rgba(20, 24, 44, .28);
   transition: opacity .18s, top .18s; cursor: pointer;
   word-break: break-word; overflow-wrap: anywhere;
-  white-space: pre-line; /* 余额气泡多行（\n 换行） */
+  white-space: pre-line;
 }
-/* 尾巴描边层（外层黑三角） */
+/* 尾巴描边层（外层深色三角） */
 #bubble::before {
   content: ""; position: absolute; right: 24px; bottom: -20px;
   border: 10px solid transparent; border-top: 14px solid #23273a;
@@ -56,58 +59,42 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: transparen
 }
 .bubble-hidden { opacity: 0; pointer-events: none; top: -8px; }
 
-/* 多行气泡（余额）：默认退回方案是窗内左侧窄条（空间不足时用）。
-   正常情况下 renderer 会让主进程临时向屏幕内侧扩展窗口（body.bub-R / bub-L），
-   模型 canvas 区保持原窗口宽度不动，气泡落在扩展出的新区，完全不遮脸。 */
+/* 多行气泡（余额）：小字号纯文本；非扩展态时退回窗内窄条 */
 #bubble.bubble-multi {
   right: auto;
-  width: 54%;
-  font-size: 11.5px;
+  width: 58%;
+  font-size: 11px;
   line-height: 1.45;
-  padding: 8px 10px;
+  padding: 7px 10px;
+  text-align: center;
 }
 
-/* —— 窗口扩展态：模型区固定为原窗宽，贴相应侧；气泡占据扩展侧 —— */
-body.bub-R #canvas-wrap,
-body.bub-L #canvas-wrap {
-  inset: auto;
-  width: calc(100% - var(--bub-extra, 148px));
-  top: 0; bottom: 0;
+/* —— 头顶扩展态：模型钉在底部原宽原位，气泡占顶部新增小条 —— */
+body.bub-UC #canvas-wrap {
+  inset: auto; left: 0; right: 0; bottom: 0;
+  width: auto;
+  height: calc(100% - var(--bub-h, 104px));
 }
-body.bub-R #canvas-wrap { left: 0; }
-body.bub-L #canvas-wrap { right: 0; }
-
-body.bub-R #bubble.bubble-multi {
-  left: calc(100% - var(--bub-extra, 148px) + 6px);
-  right: 4px; top: 10px; width: auto;
+body.bub-UC #bubble.bubble-multi {
+  top: 6px; left: 4px; right: 4px;
+  width: auto;
 }
-body.bub-L #bubble.bubble-multi {
-  left: 4px; right: auto; top: 10px;
-  width: calc(var(--bub-extra, 148px) - 10px);
+/* 她在气泡正下方：尾巴居中 */
+body.bub-UC #bubble.bubble-multi::before {
+  right: auto; left: 50%; margin-left: -9px;
+  border-left-width: 9px; border-right-width: 9px;
 }
-/* 气泡在模型右侧时，尾巴移到气泡左下角指向模型 */
-body.bub-R #bubble.bubble-multi::before {
-  right: auto; left: 18px;
-  border-left-width: 15px; border-right-width: 5px;
-}
-body.bub-R #bubble.bubble-multi::after {
-  right: auto; left: 21px;
-  border-left-width: 12px; border-right-width: 4px;
+body.bub-UC #bubble.bubble-multi::after {
+  right: auto; left: 50%; margin-left: -7px;
+  border-left-width: 7px; border-right-width: 7px;
 }
 
-/* facing<0（脸朝左）时，窗内回退窄条换到右侧（扩展态由 bub-R/bub-L 规则接管） */
-body.flip:not(.bub-R):not(.bub-L) #bubble.bubble-multi {
-  left: auto;
-  right: 10px;
-}
-body.flip:not(.bub-R):not(.bub-L) #bubble.bubble-multi::before {
-  right: auto; left: 20px;
-  border-left-width: 15px; border-right-width: 5px;
-}
-body.flip:not(.bub-R):not(.bub-L) #bubble.bubble-multi::after {
-  right: auto; left: 23px;
-  border-left-width: 12px; border-right-width: 4px;
-}
+/* 非扩展态的窗内回退窄条：尾巴移到靠近模型的一侧下角；翻转后镜像 */
+body:not(.bub-UC) #bubble.bubble-multi::before { left: auto; right: 20px; margin-left: 0; }
+body:not(.bub-UC) #bubble.bubble-multi::after { left: auto; right: 23px; margin-left: 0; }
+body.flip:not(.bub-UC) #bubble.bubble-multi { left: auto; right: 6px; }
+body.flip:not(.bub-UC) #bubble.bubble-multi::before { right: auto; left: 20px; margin-left: 0; }
+body.flip:not(.bub-UC) #bubble.bubble-multi::after { right: auto; left: 23px; margin-left: 0; }
 
 /* ===== 齿轮 ===== */
 #gear {
