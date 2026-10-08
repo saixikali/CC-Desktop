@@ -66,27 +66,39 @@ def build_snippet(pet_dir=None):
 // 这段是"尽力而为"：任何失败都只写一行日志，绝不影响应用本身启动。
 try {{
   if (process.platform === "win32") {{
-    // __dirname 的 ESM 等价物
-    const _petMainDir = dirname(fileURLToPath(import.meta.url));
-    const _petResources = dirname(_petMainDir);
-    const _petInstall = dirname(_petResources);
+    // 安装根从 process.execPath 算（exe 在安装根下），只一层 dirname。
+    // 不要用 import.meta.url 往上数 dirname：主进程跑在 asar 虚拟路径里
+    //（app.asar/out/main/index.js），数到"安装根"其实落在 app.asar 内部，
+    // existsSync 永远 false，整个注入块静默跳过（10-08 实测踩坑）。
+    const _petInstall = dirname(process.execPath);
     const _petDir = join(_petInstall, "pet");
     const _petScript = join(_petDir, "pet.py");
 
     if (existsSync(_petScript)) {{
-      const _petExe = join(_petInstall, "CC Desktop.exe");
-      const _petBin = existsSync(_petExe) ? _petExe : "pythonw.exe";
-
-      const _petEnv = Object.assign({{}}, process.env, {{ ELECTRON_RUN_AS_NODE: "1" }});
-      delete _petEnv.ELECTRON_NO_ATTACH_CONSOLE;
+      // 必须用 pythonw 跑：pet.py 是 Python 脚本，不能拿 CC Desktop.exe 当
+      // node 运行时（ELECTRON_RUN_AS_NODE）去执行 —— node 会报 SyntaxError
+      // 秒退，而且 spawn 本身成功连 error 事件都不触发，完全静默。
+      //（2026-10-08 修复的真实事故：10-02 改成 CC Desktop.exe 优先后桌宠失联。）
+      // 查找顺序与 pet.bat 一致：用户级 Python → C:/Python314 → PATH。
+      // 路径用正斜杠：这里要过 Python f-string 和 JS 字符串两道转义，
+      // 反斜杠在任一层被吃掉都会让 existsSync 悄悄变 false（Node 接受正斜杠）。
+      const _pyLocal = join(process.env.LOCALAPPDATA || "", "Programs/Python/pythonw.exe");
+      const _py314 = "C:/Python314/pythonw.exe";
+      const _petBin = existsSync(_pyLocal) ? _pyLocal
+                    : existsSync(_py314) ? _py314
+                    : "pythonw.exe";
 
       // --wait-for-app：等窗口就绪再显示（这里不需要额外的延时逻辑）
       // --watch-app   ：CC Desktop 退出时桌宠跟着退出 —— 桌宠的生命周期完全
       //                 跟着应用走，应用关掉之后不会留一个孤儿窗口在桌面上
+      // 经 cmd /c start 中转：cmd 百毫秒内退出，桌宠与应用彻底解耦。
+      // 绝不能直接 spawn pythonw —— 实测（2026-10-08）应用主进程只要有存活
+      // 的直接子进程，app.exit(0) 之后进程就挂死不退出（自检与正常关窗都
+      // 复现），cmd /c start 让应用退出时已无子进程，问题消失。
       const _pet = spawn(
-        _petBin,
-        [_petScript, "--wait-for-app", "--watch-app"],
-        {{ cwd: _petDir, detached: true, stdio: "ignore", env: _petEnv }},
+        "cmd.exe",
+        ["/c", "start", "", _petBin, _petScript, "--wait-for-app", "--watch-app"],
+        {{ cwd: _petDir, detached: true, stdio: "ignore", windowsHide: true }},
       );
       // detached + unref：不让父进程等它、也不把应用的生命周期绑在它身上
       // （"随应用退出"由 pet.py 的 --watch-app 自己轮询判断，更可靠）
